@@ -8,7 +8,7 @@
   <!-- 載入 Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 載入 React & ReactDOM (強制使用 18.2.0 Production 穩定版本，避開 18.3 開發模式 Bug) -->
+  <!-- 載入 React & ReactDOM (強制使用 18.2.0 Production 穩定版本) -->
   <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   
@@ -29,10 +29,11 @@
   <!-- React 應用的掛載點 -->
   <div id="root"></div>
 
+  <!-- 注意這裡：不再使用 import，而是直接從全域 React 物件中取用 Hooks -->
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
 
-    // --- Lucide React Icons 的替代方案 (優化 DOM 渲染避免 React 衝突) ---
+    // --- Lucide React Icons 的替代方案 (優化 DOM 渲染) ---
     const Icon = ({ name, className }) => {
       const svgRef = React.useRef(null);
       useEffect(() => {
@@ -226,7 +227,7 @@
       const [roomId, setRoomId] = useState('std_double_king');
       const [addBreakfast, setAddBreakfast] = useState(true); 
       
-      // --- 核心更新：機車選配模組狀態 ---
+      // --- 機車選配模組狀態 ---
       const [addScooter, setAddScooter] = useState(false); 
       const [scooterCount, setScooterCount] = useState(1);
       const [overrideScooterCount, setOverrideScooterCount] = useState(false); 
@@ -293,7 +294,7 @@
         return counts;
       }, [selectedTours]);
 
-      // --- 核心更新：機車成本計費引擎 ---
+      // 機車成本計費引擎
       const scooterCalculations = useMemo(() => {
         if (!addScooter) return { totalCost: 0, costPerPax: 0, daysLabel: '自理', pricePerVehicle: 0 };
         let pricePerVehicle = 0;
@@ -389,7 +390,7 @@
         const hotelNetPerPax = basePax > 0 ? (totalHotelAndBreakfastNet / basePax) : 0;
         const totalInsuranceNet = insuranceCostPerPerson * totalPax;
 
-        // 加入機車均攤成本 scooterCalculations.costPerPax
+        // 加入機車均攤成本
         const netAdult = hotelNetPerPax + transportNetPerPax.adult + tourCalculations.adultTourTotal + scooterCalculations.costPerPax + insuranceCostPerPerson;
         const netChild = hotelNetPerPax + transportNetPerPax.child + tourCalculations.childTourTotal + scooterCalculations.costPerPax + insuranceCostPerPerson;
         const netSenior = hotelNetPerPax + transportNetPerPax.senior + tourCalculations.seniorTourTotal + scooterCalculations.costPerPax + insuranceCostPerPerson;
@@ -402,7 +403,6 @@
         const sellPriceInfant = paxInfant > 0 ? Math.ceil(netInfant / 100) * 100 : 0;
 
         const totalSell = (sellPriceAdult * paxAdult) + (sellPriceChild * paxChild) + (sellPriceSenior * paxSenior) + (sellPriceInfant * paxInfant);
-        // 加入機車總成本 scooterCalculations.totalCost
         const totalNet = totalHotelAndBreakfastNet + transportTotalNet + tourCalculations.totalTourNet + scooterCalculations.totalCost + totalInsuranceNet;
 
         return {
