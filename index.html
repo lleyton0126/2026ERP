@@ -1,1020 +1,620 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Calculator, Plane, Building, Copy, CheckCircle2, Calendar, 
-  TrendingUp, Ship, Info, AlertCircle, Settings, Users, 
-  Map, Ticket, Baby, Shield, Layers, Eye
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>澎湖一站式機酒行程報價系統</title>
+  
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 載入 React & ReactDOM (強制使用 18.2.0 Production 穩定版本，避開 18.3 開發模式 Bug) -->
+  <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  
+  <!-- 載入 Babel 以便在瀏覽器中編譯 JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- 載入 Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  <style>
+    /* 隱藏滾動條但保留功能，讓介面更乾淨 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+  
+  <!-- React 應用的掛載點 -->
+  <div id="root"></div>
 
-const isHoliday2026 = (m, d) => {
-  // 2026年特殊連假判定
-  if (m === 2 && d >= 27) return true;
-  if (m === 3 && d === 1) return true;
-  if (m === 4 && d >= 3 && d <= 6) return true;
-  if (m === 5 && d >= 1 && d <= 3) return true;
-  if (m === 6 && d >= 19 && d <= 21) return true;
-  if (m === 9 && d >= 25 && d <= 28) return true;
-  if (m === 10 && d >= 9 && d <= 11) return true;
-  if (m === 10 && d >= 24 && d <= 26) return true;
-  return false;
-};
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
 
-const isFirework2026 = (m, d, day) => {
-  // 2026年花火節日期判定
-  if (m === 4 && (d === 20 || d === 27)) return true;
-  if ((m === 5 || m === 6) && (day === 1 || day === 4)) return true;
-  if (m === 6 && d === 30) return true;
-  if ((m === 7 || m === 8) && day === 2) return true;
-  return false;
-};
+    // --- Lucide React Icons 的替代方案 (優化 DOM 渲染避免 React 衝突) ---
+    const Icon = ({ name, className }) => {
+      const svgRef = React.useRef(null);
+      useEffect(() => {
+        if (svgRef.current && window.lucide) {
+          svgRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
+          lucide.createIcons({ root: svgRef.current });
+        }
+      }, [name]);
+      return <span ref={svgRef} className={`inline-flex items-center justify-center ${className || ''}`}></span>;
+    };
 
-const hotelsData = {
-  hitachi: {
-    id: 'hitachi',
-    name: '澎湖日立大飯店',
-    breakfastIncluded: false, // 由價格表動態切換含早/免早價格，故設為 false 啟用早餐控制
-    breakfastCost: 0, // 價格直接寫入房型矩陣
-    rooms: [
-      { id: 'single_room', name: '單人客房 (一大床)' },
-      { id: 'std_double_king', name: '標準雙人房 (一大床)' },
-      { id: 'std_double_twin', name: '標準雙人房 (兩小床)' },
-      { id: 'std_triple', name: '標準三人房 (一大一小床)' },
-      { id: 'std_quad', name: '標準四人房 (兩大床)' },
-      { id: 'six_room', name: '家庭六人房 (兩大床)' }
-    ],
-    // 日立大飯店獨特的多維度價格矩陣 (人工校對 Net TA價)
-    prices: {
-      single_room: {
-        off_peak_no_b: 900, off_peak_with_b: 1200,
-        weekday_no_b: 1200, weekday_with_b: 1500,
-        weekend_no_b: 1600, weekend_with_b: 1900,
-        firework_no_b: 2000, firework_with_b: 2300
+    const Calculator = (props) => <Icon name="calculator" {...props} />;
+    const Plane = (props) => <Icon name="plane" {...props} />;
+    const Building = (props) => <Icon name="building" {...props} />;
+    const Copy = (props) => <Icon name="copy" {...props} />;
+    const CheckCircle2 = (props) => <Icon name="check-circle-2" {...props} />;
+    const Calendar = (props) => <Icon name="calendar" {...props} />;
+    const TrendingUp = (props) => <Icon name="trending-up" {...props} />;
+    const Ship = (props) => <Icon name="ship" {...props} />;
+    const Info = (props) => <Icon name="info" {...props} />;
+    const Users = (props) => <Icon name="users" {...props} />;
+    const MapIcon = (props) => <Icon name="map" {...props} />;
+    const Baby = (props) => <Icon name="baby" {...props} />;
+    const ShieldCheck = (props) => <Icon name="shield-check" {...props} />;
+    const Bike = (props) => <Icon name="bike" {...props} />;
+
+    // --- 全域基礎判定數據 ---
+    const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+    const isHoliday2026 = (m, d) => {
+      if (m === 2 && d >= 27) return true;
+      if (m === 3 && d === 1) return true;
+      if (m === 4 && d >= 3 && d <= 6) return true;
+      if (m === 5 && d >= 1 && d <= 3) return true;
+      if (m === 6 && d >= 19 && d <= 21) return true;
+      if (m === 9 && d >= 25 && d <= 28) return true;
+      if (m === 10 && d >= 9 && d <= 11) return true;
+      if (m === 10 && d >= 24 && d <= 26) return true;
+      return false;
+    };
+
+    const isFirework2026 = (m, d, day) => {
+      if (m === 4 && (d === 20 || d === 27)) return true;
+      if ((m === 5 || m === 6) && (day === 1 || day === 4)) return true;
+      if (m === 6 && d === 30) return true;
+      if ((m === 7 || m === 8) && day === 2) return true;
+      return false;
+    };
+
+    // --- 飯店數據與判定邏輯 ---
+    const hotelsData = {
+      hitachi: {
+        id: 'hitachi', name: '澎湖日立大飯店', breakfastIncluded: false, breakfastCost: 0, 
+        rooms: [
+          { id: 'single_room', name: '單人客房 (一大床)' },
+          { id: 'std_double_king', name: '標準雙人房 (一大床)' },
+          { id: 'std_double_twin', name: '標準雙人房 (兩小床)' },
+          { id: 'std_triple', name: '標準三人房 (一大一小床)' },
+          { id: 'std_quad', name: '標準四人房 (兩大床)' },
+          { id: 'six_room', name: '家庭六人房 (兩大床)' }
+        ],
+        prices: {
+          single_room: { off_peak_no_b: 900, off_peak_with_b: 1200, weekday_no_b: 1200, weekday_with_b: 1500, weekend_no_b: 1600, weekend_with_b: 1900, firework_no_b: 2000, firework_with_b: 2300 },
+          std_double_king: { off_peak_no_b: 1000, off_peak_with_b: 1500, weekday_no_b: 1300, weekday_with_b: 1800, weekend_no_b: 1700, weekend_with_b: 2200, firework_no_b: 2100, firework_with_b: 2600 },
+          std_double_twin: { off_peak_no_b: 1100, off_peak_with_b: 1600, weekday_no_b: 1400, weekday_with_b: 1900, weekend_no_b: 1800, weekend_with_b: 2300, firework_no_b: 2200, firework_with_b: 2700 },
+          std_triple: { off_peak_no_b: 1600, off_peak_with_b: 2400, weekday_no_b: 1900, weekday_with_b: 2700, weekend_no_b: 2300, weekend_with_b: 3100, firework_no_b: 2700, firework_with_b: 3500 },
+          std_quad: { off_peak_no_b: 1700, off_peak_with_b: 2700, weekday_no_b: 2000, weekday_with_b: 3000, weekend_no_b: 2400, weekend_with_b: 3400, firework_no_b: 2800, firework_with_b: 3800 },
+          six_room: { off_peak_no_b: 2100, off_peak_with_b: 3600, weekday_no_b: 2400, weekday_with_b: 3900, weekend_no_b: 2800, weekend_with_b: 4300, firework_no_b: 3200, firework_with_b: 4700 }
+        },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          if (m >= 10 || m <= 3) return { seasonKey: 'off_peak', label: '淡季' };
+          if (isFirework2026(m, d, day)) return { seasonKey: 'firework', label: '花火活動日' };
+          if (day === 5 || day === 6 || day === 0 || isHoliday2026(m, d)) return { seasonKey: 'weekend', label: '旺季假日' };
+          return { seasonKey: 'weekday', label: '旺季平日' };
+        }
       },
-      std_double_king: {
-        off_peak_no_b: 1000, off_peak_with_b: 1500,
-        weekday_no_b: 1300, weekday_with_b: 1800,
-        weekend_no_b: 1700, weekend_with_b: 2200,
-        firework_no_b: 2100, firework_with_b: 2600
+      foung: {
+        id: 'foung', name: '和田大飯店', breakfastIncluded: false, breakfastCost: 100,
+        rooms: [ { id: 'std_double', name: '標準雙人房' }, { id: 'quad', name: '四人房' } ],
+        prices: { std_double: { A: 1000, B: 1300, C: 1750 }, quad: { A: 1600, B: 1900, C: 2350 } },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          const isHoli = (day === 5 || day === 6 || isHoliday2026(m, d));
+          if (m <= 3 || m >= 11) return { priceKey: isHoli ? 'B' : 'A', label: '淡季' };
+          if (m === 4 || m === 9 || m === 10) return { priceKey: isHoli ? 'C' : 'B', label: '小旺季' };
+          if (isHoli || day === 0 || day === 1 || day === 4) return { priceKey: 'C', label: '花火/假日' };
+          return { priceKey: 'B', label: '花火/平日' };
+        }
       },
-      std_double_twin: {
-        off_peak_no_b: 1100, off_peak_with_b: 1600,
-        weekday_no_b: 1400, weekday_with_b: 1900,
-        weekend_no_b: 1800, weekend_with_b: 2300,
-        firework_no_b: 2200, firework_with_b: 2700
+      heyu: {
+        id: 'heyu', name: '和寓旅店', breakfastIncluded: false, breakfastCost: 0,
+        rooms: [ { id: 's2', name: '單床房' } ],
+        prices: { s2: { A: 800, B: 1200, C: 1600 } },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          const isHoli = (day === 5 || day === 6 || isHoliday2026(m, d));
+          if (m <= 3 || m >= 11) return { priceKey: isHoli ? 'B' : 'A', label: '淡季' };
+          if (m === 4 || m === 9 || m === 10) return { priceKey: isHoli ? 'C' : 'B', label: '小旺季' };
+          if (isHoli || day === 0 || day === 1 || day === 4) return { priceKey: 'C', label: '花火/假日' };
+          return { priceKey: 'B', label: '花火/平日' };
+        }
       },
-      std_triple: {
-        off_peak_no_b: 1600, off_peak_with_b: 2400,
-        weekday_no_b: 1900, weekday_with_b: 2700,
-        weekend_no_b: 2300, weekend_with_b: 3100,
-        firework_no_b: 2700, firework_with_b: 3500
-      },
-      std_quad: {
-        off_peak_no_b: 1700, off_peak_with_b: 2700,
-        weekday_no_b: 2000, weekday_with_b: 3000,
-        weekend_no_b: 2400, weekend_with_b: 3400,
-        firework_no_b: 2800, firework_with_b: 3800
-      },
-      six_room: {
-        off_peak_no_b: 2100, off_peak_with_b: 3600,
-        weekday_no_b: 2400, weekday_with_b: 3900,
-        weekend_no_b: 2800, weekend_with_b: 4300,
-        firework_no_b: 3200, firework_with_b: 4700
+      yentai: {
+        id: 'yentai', name: '元泰大飯店', breakfastIncluded: true,
+        rooms: [ { id: 'double', name: '簡潔/雅緻二人客房' }, { id: 'quad', name: '溫馨四人客房' } ],
+        prices: { double: { A: 2100, B_W: 3000, B_H: 3600 }, quad: { A: 2800, B_W: 4000, B_H: 4400 } },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          let season = 'B'; if (m <= 3 || (m === 10 && d >= 12) || m >= 11) season = 'A';
+          let isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d) || isFirework2026(m, d, day));
+          return { priceKey: season === 'A' ? season : `${season}_${isWeekend ? 'H' : 'W'}`, label: `元泰 / ${isWeekend ? '假日' : '平日'}` };
+        }
       }
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1;
-      const d = date.getDate();
-      const day = date.getDay();
-      let seasonKey = 'weekday'; // 'off_peak', 'weekday', 'weekend', 'firework'
-      let label = '';
+    };
 
-      if (m >= 10 || m <= 3) {
-        seasonKey = 'off_peak';
-        label = '淡季 (不分平旺日)';
-      } else {
-        // 旺季 4-9月
-        const isFw = isFirework2026(m, d, day);
-        const isHoli = (day === 5 || day === 6 || day === 0 || isHoliday2026(m, d));
-        
-        if (isFw) {
-          seasonKey = 'firework';
-          label = '活動日 (花火節施放當天)';
-        } else if (isHoli) {
-          seasonKey = 'weekend';
-          label = '旺季假日 (五、六、日/連假)';
+    const flightBrands = {
+      mandarin: {
+        name: '華信航空',
+        routes: [
+          { id: 'tsa', name: '台北松山', prices: { adult: 4362, child: 3272, senior: 2181 } },
+          { id: 'rmq', name: '台中清泉崗', prices: { adult: 3257, child: 2443, senior: 1629 } },
+          { id: 'khh', name: '高雄小港', prices: { adult: 3731, child: 2798, senior: 1866 } }
+        ]
+      },
+      uniair: {
+        name: '立榮航空',
+        routes: [
+          { id: 'tsa', name: '台北松山', prices: { adult: 4289, child: 3861, senior: 2145 } },
+          { id: 'rmq', name: '台中清泉崗', prices: { adult: 3329, child: 2997, senior: 1665 } },
+          { id: 'cyi', name: '嘉義水上', prices: { adult: 3262, child: 2936, senior: 1632 } },
+          { id: 'tnn', name: '台南', prices: { adult: 3208, child: 2888, senior: 1605 } },
+          { id: 'khh', name: '高雄小港', prices: { adult: 3538, child: 3185, senior: 1769 } }
+        ]
+      }
+    };
+
+    const tourSuppliers = [
+      { id: 'haian', name: '海安遊艇 (南海)' },
+      { id: 'xinyang', name: '新揚快艇 (北海)' },
+      { id: 'yuanbei', name: '員貝樂營 (東海)' },
+      { id: 'heqing', name: '和慶半潛艇' },
+      { id: 'kingbada', name: '金八達快艇' },
+      { id: 'oyster', name: '蠔野人育樂' }
+    ];
+
+    const localToursDatabase = [
+      // 海安
+      { id: 'h_4is', supplierId: 'haian', name: '四島全覽 (七美.望安.虎井.桶盤)', prices: { adult: 800, child: 800, senior: 800, infant: 100 }, desc: '探索澎湖南海四大海島精華' },
+      { id: 'h_7w_t', supplierId: 'haian', name: '七美望安+桶盤巡航', prices: { adult: 700, child: 700, senior: 700, infant: 100 }, desc: '經典雙島登島與柱狀玄武岩巡航' },
+      { id: 'h_blue_7', supplierId: 'haian', name: '藍洞巡航+七美深度之旅', prices: { adult: 900, child: 900, senior: 900, infant: 100 }, desc: '七美深度一日遊(含機車)與西吉藍洞巡禮' },
+      { id: 'h_firework', supplierId: 'haian', name: '觀音亭海上看煙火專船', prices: { adult: 280, child: 280, senior: 280, infant: 50 }, desc: '乘船出海，最佳視角欣賞海上花火' },
+      // 新揚
+      { id: 'x_mudou', supplierId: 'xinyang', name: '目斗嶼半日遊', prices: { adult: 500, child: 500, senior: 500, infant: 0 }, desc: '北海秘境，直達目斗嶼燈塔' },
+      { id: 'x_north_jump', supplierId: 'xinyang', name: '北海跳島一日遊', prices: { adult: 1000, child: 1000, senior: 1000, infant: 0 }, desc: '北海各島嶼巡航與登島體驗' },
+      { id: 'x_south4_qimei', supplierId: 'xinyang', name: '南方四島+七美', prices: { adult: 1100, child: 1100, senior: 1100, infant: 100 }, desc: '南方四島國家公園巡航 + 七美登島' },
+      // 員貝
+      { id: 'y_a', supplierId: 'yuanbei', name: 'A. 員貝耍廢一日遊 (不玩水)', prices: { adult: 850, child: 850, senior: 850, infant: 100 }, desc: '燕鷗巡航、抱墩、龍蝦麵疙瘩' },
+      { id: 'y_b', supplierId: 'yuanbei', name: 'B. 悠游員貝一日遊 (玩水)', prices: { adult: 950, child: 950, senior: 950, infant: 100 }, desc: '含耍廢一日遊及海上盪鞦韆/SUP' },
+      // 和慶
+      { id: 'hq_farm', supplierId: 'heqing', name: '海洋牧場+半潛艇海底珊瑚 (2.5h)', prices: { adult: 390, child: 250, senior: 390, infant: 50 }, desc: '碳烤鮮牡蠣與海鮮粥吃到飽，搭半潛艇賞珊瑚' },
+      { id: 'hq_squid', supplierId: 'heqing', name: '半潛艇夜釣小管體驗 (2h)', prices: { adult: 280, child: 280, senior: 280, infant: 50 }, desc: '夜航大海垂釣晶瑩小管，品嚐小管麵線' },
+      // 金八達
+      { id: 'kb_jibei', supplierId: 'kingbada', name: '吉貝來回船票 (赤崁航線)', prices: { adult: 290, child: 290, senior: 290, infant: 100 }, desc: '北海航運尖兵，赤崁至吉貝來回船票' },
+      { id: 'kb_jibei_7in1', supplierId: 'kingbada', name: '驚豔吉貝 (來回船票+水上活動7合1)', prices: { adult: 550, child: 550, senior: 550, infant: 100 }, desc: '含吉貝來回船票、水上活動七合一無限暢玩' },
+      // 蠔野人
+      { id: 'oy_cat', supplierId: 'oyster', name: '跳進貓島虎井半日遊', prices: { adult: 1500, child: 900, senior: 1500, infant: 500 }, desc: '登虎井島送機車環島，體驗SUP立槳、現蒸牡蠣與海鮮風味餐' },
+      { id: 'oy_purple', supplierId: 'oyster', name: '徜徉紫色珊瑚海一日遊', prices: { adult: 2900, child: 2200, senior: 2900, infant: 500 }, desc: '東嶼坪海底薰衣草森林浮潛，望安環島機車與海鮮餐' },
+    ];
+
+    function App() {
+      const [paxAdult, setPaxAdult] = useState(2);
+      const [paxChild, setPaxChild] = useState(0);
+      const [paxSenior, setPaxSenior] = useState(0);
+      const [paxInfant, setPaxInfant] = useState(0); 
+
+      const [rooms, setRooms] = useState(1);
+      const [nights, setNights] = useState(2); 
+      const [startDateStr, setStartDateStr] = useState('2026-06-18'); 
+      
+      const [transportType, setTransportType] = useState('flight'); 
+      const [flightBrand, setFlightBrand] = useState('uniair'); 
+      const [flightId, setFlightId] = useState('tsa'); 
+      const [flightAdjustments, setFlightAdjustments] = useState([
+        { id: 'season', name: '旺季加價', amount: 500, enabled: false },
+        { id: 'weekendOut', name: '去程週末出發', amount: 300, enabled: false },
+        { id: 'weekendIn', name: '回程週末返回', amount: 300, enabled: false },
+      ]);
+
+      const [hotelId, setHotelId] = useState('hitachi');
+      const [roomId, setRoomId] = useState('std_double_king');
+      const [addBreakfast, setAddBreakfast] = useState(true); 
+      
+      // --- 核心更新：機車選配模組狀態 ---
+      const [addScooter, setAddScooter] = useState(false); 
+      const [scooterCount, setScooterCount] = useState(1);
+      const [overrideScooterCount, setOverrideScooterCount] = useState(false); 
+
+      const [activeSupplierId, setActiveSupplierId] = useState('haian'); 
+      const [selectedTours, setSelectedTours] = useState([]);
+
+      const [markupValue, setMarkupValue] = useState(15);
+      const [copied, setCopied] = useState(false);
+
+      const basePax = useMemo(() => paxAdult + paxChild + paxSenior, [paxAdult, paxChild, paxSenior]);
+      const totalPax = useMemo(() => basePax + paxInfant, [basePax, paxInfant]);
+      const totalDays = useMemo(() => nights + 1, [nights]);
+
+      // 機車台數自動化：依據人數兩人一台，無條件進位
+      useEffect(() => {
+        if (!overrideScooterCount) {
+          setScooterCount(Math.ceil(basePax / 2) || 1);
+        }
+      }, [basePax, overrideScooterCount]);
+
+      useEffect(() => {
+        const brandData = flightBrands[flightBrand];
+        const hasRoute = brandData.routes.some(r => r.id === flightId);
+        if (!hasRoute) setFlightId(brandData.routes[0].id); 
+      }, [flightBrand, flightId]);
+
+      const handleHotelChange = (newHotelId) => {
+        setHotelId(newHotelId);
+        setRoomId(hotelsData[newHotelId].rooms[0].id);
+        if (newHotelId === 'foung' || newHotelId === 'heyu') {
+          setAddBreakfast(false); 
         } else {
-          seasonKey = 'weekday';
-          label = '旺季平日 (二、三)';
+          setAddBreakfast(true);
         }
-      }
-      return { seasonKey, label };
-    }
-  },
-  sheraton: {
-    id: 'sheraton', name: '澎湖福朋喜來登酒店', breakfastIncluded: true,
-    rooms: [
-      { id: 'city_twin', name: '街景豪華雙床客房 (2中床)' },
-      { id: 'city_view_twin', name: '市景豪華雙床客房 (2中床)' },
-      { id: 'harbor_twin', name: '港景豪華雙床客房 (2中床)' },
-    ],
-    prices: {
-      city_twin: { off_peak_weekday: 3300, off_peak_weekend: 3800, shoulder_weekday: 3900, shoulder_weekend: 4400, peak_weekday: 4600, peak_weekend: 5100 },
-      city_view_twin: { off_peak_weekday: 3800, off_peak_weekend: 4300, shoulder_weekday: 4400, shoulder_weekend: 4900, peak_weekday: 5100, peak_weekend: 5600 },
-      harbor_twin: { off_peak_weekday: 4300, off_peak_weekend: 4800, shoulder_weekday: 4900, shoulder_weekend: 5400, peak_weekday: 5600, peak_weekend: 6100 }
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let season = 'peak'; let seasonName = '旺季';
-      if (m <= 2 || (m === 10 && d >= 16) || m >= 11) { season = 'off_peak'; seasonName = '淡季'; }
-      else if (m === 3 || m === 4 || m === 9 || (m === 10 && d <= 15)) { season = 'shoulder'; seasonName = '小旺季'; }
-      let isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d) || isFirework2026(m, d, day));
-      return { priceKey: `${season}_${isWeekend ? 'weekend' : 'weekday'}`, label: `${seasonName} / ${isWeekend ? '假日(含花火/連假)' : '平日'}` };
-    }
-  },
-  discovery: {
-    id: 'discovery', name: '澎澄飯店', breakfastIncluded: true,
-    rooms: [
-      { id: 'park_view', name: '園景探索客房 (2大床)' },
-      { id: 'harbor_view', name: '港景探索客房 (2大床)' },
-      { id: 'park_discovery', name: '園景澎澄客房 (1超大床)' },
-      { id: 'harbor_discovery_twin', name: '港景澎澄客房 (2中床)' },
-    ],
-    prices: {
-      park_view: { off_peak_weekday: 3250, off_peak_weekend: 3750, shoulder_weekday: 4500, shoulder_weekend: 5000, peak_weekday: 4800, peak_weekend: 5300 },
-      harbor_view: { off_peak_weekday: 3650, off_peak_weekend: 4150, shoulder_weekday: 4800, shoulder_weekend: 5300, peak_weekday: 5300, peak_weekend: 5800 },
-      park_discovery: { off_peak_weekday: 4050, off_peak_weekend: 4550, shoulder_weekday: 5100, shoulder_weekend: 5600, peak_weekday: 5800, peak_weekend: 6300 },
-      harbor_discovery_twin: { off_peak_weekday: 4450, off_peak_weekend: 4950, shoulder_weekday: 5400, shoulder_weekend: 5900, peak_weekday: 6300, peak_weekend: 6800 },
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let season = 'peak'; let seasonName = '旺季';
-      if (m <= 3 || (m === 10 && d >= 12) || m >= 11) { season = 'off_peak'; seasonName = '淡季'; }
-      else if (m === 4 || m === 8 || m === 9 || (m === 10 && d <= 11)) { season = 'shoulder'; seasonName = '小旺季'; }
-      const isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d));
-      return { priceKey: `${season}_${isWeekend ? 'weekend' : 'weekday'}`, label: `${seasonName} / ${isWeekend ? '假日' : '平日'}` };
-    }
-  },
-  foung: {
-    id: 'foung', name: '和田大飯店', breakfastIncluded: false, breakfastCost: 100,
-    rooms: [
-      { id: 'std_double', name: '標準雙人房 (1大床)' },
-      { id: 'leisure_double', name: '休閒雙人房 (2單床)' },
-      { id: 'quad', name: '四人房 (1大2單床)' },
-    ],
-    prices: {
-      std_double: { A: 1000, B: 1300, C: 1750 },
-      leisure_double: { A: 1200, B: 1500, C: 1950 },
-      quad: { A: 1600, B: 1900, C: 2350 },
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let priceKey = 'A'; let label = '';
-      const isHoli = (day === 5 || day === 6 || isHoliday2026(m, d));
-      if (m <= 3 || m >= 11) {
-        priceKey = isHoli ? 'B' : 'A'; label = `淡季 / ${priceKey === 'B' ? '假日(套用平日)' : '淡日'}`;
-      } else if (m === 4 || m === 9 || m === 10) {
-        priceKey = isHoli ? 'C' : 'B'; label = `小旺季 / ${priceKey === 'C' ? '假日' : '平日'}`;
-      } else if (m === 5 || m === 6) {
-        if (isHoli || day === 0 || day === 1 || day === 4) { priceKey = 'C'; label = '花火季 / 假日(含施放日與週日)'; } 
-        else { priceKey = 'B'; label = '花火季 / 平日'; }
-      } else {
-        if (isHoli || day === 0) { priceKey = 'C'; label = '暑假 / 假日'; } 
-        else { priceKey = 'B'; label = '暑假 / 平日'; }
-      }
-      return { priceKey, label };
-    }
-  },
-  heyu: {
-    id: 'heyu', name: '和寓旅店', breakfastIncluded: false, breakfastCost: 0,
-    rooms: [
-      { id: 's2', name: '單床房 (標準雙人床/1-2人)' },
-      { id: 't4', name: '雙床房 (可宿4-5人)' }
-    ],
-    prices: {
-      s2: { A: 800, B: 1200, C: 1600 },
-      t4: { A: 1400, B: 1800, C: 2200 }
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let priceKey = 'A'; let label = '';
-      const isHoli = (day === 5 || day === 6 || isHoliday2026(m, d));
-      if (m <= 3 || m >= 11) {
-        priceKey = isHoli ? 'B' : 'A'; label = `淡季 / ${priceKey === 'B' ? '假日(套用平日)' : '淡日'}`;
-      } else if (m === 4 || m === 9 || m === 10) {
-        priceKey = isHoli ? 'C' : 'B'; label = `小旺季 / ${priceKey === 'C' ? '假日' : '平日'}`;
-      } else if (m === 5 || m === 6) {
-        if (isHoli || day === 0 || day === 1 || day === 4) { priceKey = 'C'; label = '花火季 / 假日(含施放日與週日)'; } 
-        else { priceKey = 'B'; label = '花火季 / 平日'; }
-      } else {
-        if (isHoli || day === 0) { priceKey = 'C'; label = '暑假 / 假日'; } 
-        else { priceKey = 'B'; label = '暑假 / 平日'; }
-      }
-      return { priceKey, label };
-    }
-  },
-  haiyue: {
-    id: 'haiyue', name: '海悅飯店', breakfastIncluded: true,
-    rooms: [
-      { id: 's2', name: '雅緻單床雙人房 (1大床)' },
-      { id: 't2', name: '晶典雙床雙人房 (2小床)' },
-      { id: 't4', name: '晶典雙床四人房 (2大床)' },
-    ],
-    prices: {
-      s2: { A: 2200, B: 2200, C_W: 2400, C_H: 2400, D_W: 2400, D_H: 2600 },
-      t2: { A: 2400, B: 2400, C_W: 2800, C_H: 3200, D_W: 3000, D_H: 3400 },
-      t4: { A: 2800, B: 3000, C_W: 3600, C_H: 4200, D_W: 4000, D_H: 4400 }
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let season = 'A'; let sName = '';
-      if ([11, 12, 1, 2].includes(m)) { season = 'A'; sName = '11-2月'; }
-      else if ([3, 10].includes(m)) { season = 'B'; sName = '3/10月'; }
-      else if ([4, 8, 9].includes(m)) { season = 'C'; sName = '4/8/9月'; }
-      else { season = 'D'; sName = '5-7月'; }
-      let isWeekend = (day === 5 || day === 6 || day === 0 || isHoliday2026(m, d) || isFirework2026(m, d, day));
-      const priceKey = (season === 'A' || season === 'B') ? season : `${season}_${isWeekend ? 'H' : 'W'}`;
-      return { priceKey, label: `${sName} / ${isWeekend ? '假日' : '平日'}` };
-    }
-  },
-  rainbow: {
-    id: 'rainbow', name: '彩虹文旅', breakfastIncluded: true,
-    rooms: [
-      { id: 's2', name: 'MINI 簡約雙人房 (1大床)' },
-      { id: 't2', name: 'MODA 品尚雙人房 (2小床)' },
-      { id: 't4', name: 'FAM 舒活四人房 (2大床)' },
-    ],
-    prices: {
-      s2: { A: 1400, B_W: 1700, B_H: 1900, C_W: 2200, C_H: 2600 },
-      t2: { A: 1600, B_W: 1900, B_H: 2100, C_W: 2400, C_H: 2800 },
-      t4: { A: 1900, B_W: 2200, B_H: 2650, C_W: 3100, C_H: 3600 },
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let season = 'A'; let sName = '';
-      if ([11, 12, 1, 2, 3].includes(m)) { season = 'A'; sName = '11-3月'; }
-      else if ([4, 10].includes(m)) { season = 'B'; sName = '4/10月'; }
-      else { season = 'C'; sName = '5-9月'; }
-      let isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d) || isFirework2026(m, d, day));
-      const priceKey = season === 'A' ? season : `${season}_${isWeekend ? 'H' : 'W'}`;
-      return { priceKey, label: `${sName} / ${isWeekend ? '假日' : '平日'}` };
-    }
-  },
-  yentai: {
-    id: 'yentai', name: '元泰大飯店', breakfastIncluded: true,
-    rooms: [
-      { id: 'double', name: '簡潔/雅緻 雙人客房' },
-      { id: 'triple', name: '經典 三人客房' },
-      { id: 'quad', name: '溫馨 四人客房' },
-    ],
-    prices: {
-      double: { A: 2100, B_W: 3000, B_H: 3600 },
-      triple: { A: 2450, B_W: 3500, B_H: 4200 },
-      quad: { A: 2800, B_W: 4000, B_H: 4400 },
-    },
-    judge: (date) => {
-      const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
-      let season = 'B'; let sName = '旺季';
-      if (m <= 3 || (m === 10 && d >= 12) || m >= 11) { season = 'A'; sName = '淡季'; }
-      let isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d) || isFirework2026(m, d, day));
-      const priceKey = season === 'A' ? season : `${season}_${isWeekend ? 'H' : 'W'}`;
-      return { priceKey, label: `${sName} / ${isWeekend ? '假日(含花火)' : '平日'}` };
-    }
-  }
-};
+      };
 
-const flightBrands = {
-  mandarin: {
-    name: '華信航空',
-    routes: [
-      { id: 'tsa', name: '台北松山', prices: { adult: 4362, child: 3272, senior: 2181 } },
-      { id: 'rmq', name: '台中清泉崗', prices: { adult: 3257, child: 2443, senior: 1629 } },
-      { id: 'khh', name: '高雄小港', prices: { adult: 3731, child: 2798, senior: 1866 } }
-    ]
-  },
-  uniair: {
-    name: '立榮航空',
-    routes: [
-      { id: 'tsa', name: '台北松山', prices: { adult: 4289, child: 3861, senior: 2145 } },
-      { id: 'rmq', name: '台中清泉崗', prices: { adult: 3329, child: 2997, senior: 1665 } },
-      { id: 'cyi', name: '嘉義水上', prices: { adult: 3262, child: 2936, senior: 1632 } },
-      { id: 'tnn', name: '台南', prices: { adult: 3208, child: 2888, senior: 1605 } },
-      { id: 'khh', name: '高雄小港', prices: { adult: 3538, child: 3185, senior: 1769 } }
-    ]
-  }
-};
+      const handleAdjustmentChange = (id, field, value) => {
+        setFlightAdjustments(prev => prev.map(adj => adj.id === id ? { ...adj, [field]: value } : adj));
+      };
 
-const tourSuppliers = [
-  { id: 'haian', name: '海安遊艇 (南海)' },
-  { id: 'xinyang', name: '新揚快艇 (北海)' },
-  { id: 'yuanbei', name: '員貝樂營 (東海)' },
-  { id: 'heqing', name: '和慶半潛艇' },
-  { id: 'kingbada', name: '金八達快艇' },
-  { id: 'oyster', name: '蠔野人育樂' },
-  { id: 'scooter', name: '島上機車/交通' }
-];
+      const toggleTour = (tourId) => {
+        setSelectedTours(prev => prev.includes(tourId) ? prev.filter(id => id !== tourId) : [...prev, tourId]);
+      };
 
-const localToursDatabase = [
-  // 【南海行程 - 海安遊艇】
-  { id: 'h_4is', supplierId: 'haian', name: '四島全覽 (七美.望安.虎井.桶盤)', prices: { adult: 800, child: 800, senior: 800, infant: 100 }, note: '建議售價 $1,100', desc: '七美、望安、虎井、桶盤巡航' },
-  { id: 'h_7w_t', supplierId: 'haian', name: '七美望安+桶盤巡航', prices: { adult: 700, child: 700, senior: 700, infant: 100 }, note: '建議售價 $1,000', desc: '七美望安登島 + 桶盤巡航' },
-  { id: 'h_3is', supplierId: 'haian', name: '3島 (望安.虎井.桶盤)', prices: { adult: 500, child: 500, senior: 500, infant: 100 }, note: '建議售價 $700', desc: '望安、虎井登島 + 桶盤巡航' },
-  { id: 'h_blue_7', supplierId: 'haian', name: '藍洞巡航+七美深度之旅', prices: { adult: 900, child: 900, senior: 900, infant: 100 }, note: '含機車(2人1台) 建議 $1,300', desc: '七美深度之旅(含機車) + 西吉藍洞巡航' },
-  { id: 'h_7_day', supplierId: 'haian', name: '七美一日遊', prices: { adult: 900, child: 900, senior: 900, infant: 100 }, note: '含機車(2人1台) 建議 $1,200', desc: '七美深度一日遊(含機車)' },
-  { id: 'h_7_snork', supplierId: 'haian', name: '七美一日遊+浮潛/獨木舟', prices: { adult: 1300, child: 1300, senior: 1300, infant: 200 }, note: '含機車(2人1台) 建議 $1,800', desc: '七美登島(含機車) + 浮潛或獨木舟二選一' },
-  { id: 'h_south4_a', supplierId: 'haian', name: '南方四島(A) 東吉+七美登島', prices: { adult: 1100, child: 1100, senior: 1100, infant: 100 }, note: '含七美機車。建議 $1,500', desc: '東吉、七美登島(含機車) + 藍洞/鐵占/頭巾巡航' },
-  { id: 'h_south4_b', supplierId: 'haian', name: '南方四島(B) 東吉+東嶼坪登島', prices: { adult: 1300, child: 1300, senior: 1300, infant: 100 }, note: '建議售價 $1,600', desc: '東吉、東嶼坪登島導覽 + 藍洞/頭巾巡航' },
-  { id: 'h_south4_c', supplierId: 'haian', name: '南方四島(C) 東吉+東嶼坪(浮潛)登島', prices: { adult: 2700, child: 2700, senior: 2700, infant: 100 }, note: '建議售價 $3,300', desc: '東吉登島、東嶼坪浮潛 + 藍洞/頭巾巡航' },
-  { id: 'h_firework', supplierId: 'haian', name: '觀音亭海上看煙火專船', prices: { adult: 280, child: 280, senior: 280, infant: 50 }, note: '建議售價 $380', desc: '乘船出海，最佳視角欣賞海上花火' },
+      // 保險計算
+      const insuranceCostPerPerson = useMemo(() => {
+        const days = nights + 1;
+        return days <= 2 ? 75 : 105 + (days - 3) * 30;
+      }, [nights]);
 
-  // 【北海/東海 - 新揚快艇】
-  { id: 'x_mudou', supplierId: 'xinyang', name: '目斗嶼半日遊', prices: { adult: 500, child: 500, senior: 500, infant: 0 }, note: '建議售價 $700', desc: '北海秘境，直達目斗嶼燈塔' },
-  { id: 'x_north_jump', supplierId: 'xinyang', name: '北海跳島一日遊', prices: { adult: 1000, child: 1000, senior: 1000, infant: 0 }, note: '建議售價 $1,300', desc: '北海各島嶼巡航與登島體驗' },
-  { id: 'x_south4_qimei', supplierId: 'xinyang', name: '南方四島+七美', prices: { adult: 1100, child: 1100, senior: 1100, infant: 100 }, note: '建議售價 $1,500', desc: '南方四島國家公園巡航 + 七美登島' },
-  { id: 'x_sunset', supplierId: 'xinyang', name: '黃昏之旅', prices: { adult: 800, child: 800, senior: 800, infant: 100 }, note: '建議售價 $1,000', desc: '漫遊澎湖港灣，享受絕美夕陽景緻' },
-  { id: 'x_jibei', supplierId: 'xinyang', name: '吉貝登島來回船票', prices: { adult: 250, child: 250, senior: 250, infant: 0 }, note: '建議售價 $350', desc: '北海吉貝島來回船票' },
-  { id: 'x_water7', supplierId: 'xinyang', name: '吉貝七合一水上活動', prices: { adult: 300, child: 300, senior: 300, infant: 0 }, note: '建議售價 $700', desc: '吉貝沙灘水上活動一票到底無限暢玩' },
-  { id: 'x_catch', supplierId: 'xinyang', name: '抱墩 (古早捕魚體驗)', prices: { adult: 250, child: 250, senior: 250, infant: 0 }, note: '建議售價 $350', desc: '體驗澎湖古早人不用船隻也能捕魚的智慧結晶' },
+      const checkInJudge = useMemo(() => {
+        const d = new Date(startDateStr);
+        if (isNaN(d.getTime())) return null;
+        return hotelsData[hotelId].judge(d);
+      }, [startDateStr, hotelId]);
 
-  // 【東海 - 員貝樂營】
-  { id: 'y_a', supplierId: 'yuanbei', name: 'A. 員貝耍廢一日遊 (不玩水)', prices: { adult: 850, child: 850, senior: 850, infant: 100 }, note: '含豪華龍蝦餐。建議 $1,400', desc: '小島巡航賞燕鷗、潮間帶尋寶、豪華海島午餐、現烤小管DIY' },
-  { id: 'y_b', supplierId: 'yuanbei', name: 'B. 悠游員貝一日遊 (玩水)', prices: { adult: 950, child: 950, senior: 950, infant: 100 }, note: '含豪華龍蝦餐。建議 $1,600', desc: '小島巡航賞燕鷗、潮間帶尋寶、海島午餐、海上跳水與SUP' },
-  { id: 'y_c', supplierId: 'yuanbei', name: 'C. 員貝海牧之旅 (不玩水)', prices: { adult: 450, child: 450, senior: 450, infant: 100 }, note: '含牡蠣海鮮粥。建議 $800', desc: '小島巡航賞燕鷗、海鱺無鉤拉竿、牡蠣海鮮粥吃到飽、耍廢島登島' },
-  { id: 'y_d', supplierId: 'yuanbei', name: 'D. 員貝海牧玩水之旅 (玩水)', prices: { adult: 750, child: 750, senior: 750, infant: 100 }, note: '含牡蠣海鮮粥。建議 $1,250', desc: '小島巡航賞燕鷗、海牧生態體驗、牡蠣海鮮粥、海上跳水與SUP' },
+      const tourSlicesCount = useMemo(() => {
+        const counts = {};
+        selectedTours.forEach(tourId => {
+          const tour = localToursDatabase.find(t => t.id === tourId);
+          if (tour) { counts[tour.supplierId] = (counts[tour.supplierId] || 0) + 1; }
+        });
+        return counts;
+      }, [selectedTours]);
 
-  // 【和慶半潛艇 - 新加入】
-  { id: 'hq_farm', supplierId: 'heqing', name: '海洋牧場+半潛艇海底珊瑚 (2.5h)', prices: { adult: 390, child: 250, senior: 390, infant: 50 }, note: '建議零售 $600', desc: '碳烤鮮牡蠣與海鮮粥吃到飽，鬥海鱺溜花枝，搭半潛艇賞珊瑚' },
-  { id: 'hq_squid', supplierId: 'heqing', name: '半潛艇夜釣小管體驗 (2h)', prices: { adult: 280, child: 280, senior: 280, infant: 50 }, note: '建議零售 $550', desc: '夜航大海垂釣晶瑩小管，船上品嚐熱呼呼小管麵線及冰鎮生魚片' },
-  { id: 'hq_firework', supplierId: 'heqing', name: '夜釣小管+海上看花火 (2.5h)', prices: { adult: 380, child: 380, senior: 380, infant: 50 }, note: '建議零售 $650', desc: '花火節限定，海上釣小管兼擁抱第一排震撼煙火海景' },
-
-  // 【金八達快艇 - 新加入】
-  { id: 'kb_jibei', supplierId: 'kingbada', name: '吉貝來回船票 (赤崁航線)', prices: { adult: 290, child: 290, senior: 290, infant: 100 }, note: '建議零售 $450', desc: '北海航運尖兵，赤崁至吉貝高速快艇來回船票' },
-  { id: 'kb_jibei_7in1', supplierId: 'kingbada', name: '驚豔吉貝 (來回船票+水上活動7合1)', prices: { adult: 550, child: 550, senior: 550, infant: 100 }, note: '建議零售 $1,150', desc: '含吉貝來回船票、香蕉船/水上海戰車/海飛船/浮潛等七合一無限暢玩' },
-  { id: 'kb_4is_north', supplierId: 'kingbada', name: '北海四島 (姑婆嶼/鐵砧嶼巡航+目斗嶼登島+吉貝)', prices: { adult: 650, child: 650, senior: 650, infant: 100 }, note: '建議零售 $1,000', desc: '北海秘境巡禮，直達黑岩目斗嶼燈塔登島、姑婆嶼、鐵砧嶼、險礁巡航' },
-  { id: 'kb_jibei_mudou', supplierId: 'kingbada', name: '吉貝島+目斗嶼燈塔深度登島', prices: { adult: 600, child: 600, senior: 600, infant: 100 }, note: '建議零售 $950', desc: '一次滿足雙島登島，探訪全台最高鐵架目斗嶼燈塔與吉貝白沙尾' },
-  { id: 'kb_firework', supplierId: 'kingbada', name: '金八達觀音亭海上花火專船', prices: { adult: 270, child: 270, senior: 270, infant: 100 }, note: '建議零售 $350', desc: '避開路面擁擠人潮，乘風出海於觀音亭虹橋正面擁抱海上花火' },
-
-  // 【蠔野人育樂 - 新加入】
-  { id: 'oy_cat', supplierId: 'oyster', name: '跳進貓島虎井半日遊 (SUP+浮潛+機車)', prices: { adult: 1500, child: 900, senior: 1500, infant: 500 }, note: '建議零售 $1,800 (6人成團)', desc: '登虎井島送機車環島，尋找巨人之手，體驗SUP立槳、充氣網美池、船上現蒸牡蠣與海鮮風味餐' },
-  { id: 'oy_purple', supplierId: 'oyster', name: '徜徉紫色珊瑚海一日遊 (東嶼坪浮潛+望安)', prices: { adult: 2900, child: 2200, senior: 2900, infant: 500 }, note: '建議零售 $3,200 (6人成團)', desc: '探訪東嶼坪海底薰衣草森林，登島送望安環島機車，船上現蒸牡蠣與海鮮餐吃到飽' },
-  { id: 'oy_north', supplierId: 'oyster', name: '漂流北方仙境一日遊 (目斗嶼+吉貝機車)', prices: { adult: 2500, child: 1700, senior: 2500, infant: 500 }, note: '建議零售 $2,800 (6人成團)', desc: '穿梭大橋，探尋最北神秘目斗嶼登島，吉貝沙尾美景，附贈吉貝機車、SUP划槳與蠔野人風味餐' },
-  { id: 'oy_sunset', supplierId: 'oyster', name: '浪漫暮光旅人 (海上夕陽賞酒水+SUP)', prices: { adult: 1000, child: 700, senior: 1000, infant: 500 }, note: '建議零售 $1,300 (6人成團)', desc: '午後起航錨泊海中央，在夕陽霞光下隨意體驗SUP、造型泳圈，享受啤酒汽水無限暢飲輕食小點' },
-  { id: 'oy_firework', supplierId: 'oyster', name: '星空花火海上盛宴 (現蒸牡蠣+特調酒水)', prices: { adult: 1400, child: 800, senior: 1400, infant: 500 }, note: '建議零售 $1,600 (6人成團)', desc: '小包船海上PARTY，專屬夜釣小管，享用特調風味酒、熱呼呼海鮮、現蒸肥美牡蠣及啤酒無限暢飲' },
-
-  // 【島上交通代訂】
-  { id: 'scooter_qimei', supplierId: 'scooter', name: '七美機車 (2人1台)', type: 'scooter', prices: { adult: 170, child: 0, senior: 0, infant: 0 }, note: '建議售價 $200/台', desc: '七美島上自駕機車代步環島' },
-  { id: 'scooter_wangan', supplierId: 'scooter', name: '望安機車 (2人1台)', type: 'scooter', prices: { adult: 150, child: 0, senior: 0, infant: 0 }, note: '建議售價 $180/台', desc: '望安島上自駕機車代步環島' },
-  { id: 'scooter_jibei', supplierId: 'scooter', name: '吉貝機車 (單台計價)', type: 'scooter', prices: { adult: 170, child: 0, senior: 0, infant: 0 }, note: '建議售價 $250/台', desc: '吉貝島上自駕機車代步' },
-];
-
-const initialFlightAdjustments = [
-  { id: 'season', name: '旺季加價', amount: 500, enabled: false },
-  { id: 'weekendOut', name: '去程週末出發', amount: 300, enabled: false },
-  { id: 'weekendIn', name: '回程週末返回', amount: 300, enabled: false },
-  { id: 'promo', name: '早鳥/促銷減價', amount: -300, enabled: false },
-];
-
-export default function App() {
-  const [paxAdult, setPaxAdult] = useState(2);
-  const [paxChild, setPaxChild] = useState(0);
-  const [paxSenior, setPaxSenior] = useState(0);
-  const [paxInfant, setPaxInfant] = useState(0); 
-
-  const [rooms, setRooms] = useState(1);
-  const [nights, setNights] = useState(2); // 預設三天兩夜 (2晚)
-  const [startDateStr, setStartDateStr] = useState('2026-06-18'); // 2026 煙火旺季週四
-  
-  // 交通設定
-  const [transportType, setTransportType] = useState('flight'); 
-  const [flightBrand, setFlightBrand] = useState('uniair'); 
-  const [flightId, setFlightId] = useState('tsa'); 
-  const [flightAdjustments, setFlightAdjustments] = useState(initialFlightAdjustments);
-  const [manualPriceAdult, setManualPriceAdult] = useState('');
-  const [manualPriceChild, setManualPriceChild] = useState('');
-  const [manualPriceSenior, setManualPriceSenior] = useState('');
-  const [manualPriceInfant, setManualPriceInfant] = useState('');
-
-  // 飯店設定 (預設日立大飯店)
-  const [hotelId, setHotelId] = useState('hitachi');
-  const [roomId, setRoomId] = useState('std_double_king');
-  const [addBreakfast, setAddBreakfast] = useState(true); // 預設含早餐
-  
-  // 優化遊程選單之狀態
-  const [activeSupplierId, setActiveSupplierId] = useState('haian'); // 預設展開海安遊艇
-  const [selectedTours, setSelectedTours] = useState([]);
-
-  // 利潤與 UI
-  const [markupValue, setMarkupValue] = useState(15);
-  const [copied, setCopied] = useState(false);
-
-  // 計算不含嬰兒的佔床/佔位人數 (用來均攤房費)
-  const basePax = useMemo(() => paxAdult + paxChild + paxSenior, [paxAdult, paxChild, paxSenior]);
-  // 全團總人數
-  const totalPax = useMemo(() => basePax + paxInfant, [basePax, paxInfant]);
-
-  // 當切換航空品牌時，確保航線對應
-  useEffect(() => {
-    const brandData = flightBrands[flightBrand];
-    const hasRoute = brandData.routes.some(r => r.id === flightId);
-    if (!hasRoute) setFlightId(brandData.routes[0].id); 
-  }, [flightBrand, flightId]);
-
-  // 當切換飯店時，自動重新綁定房型
-  const handleHotelChange = (newHotelId) => {
-    setHotelId(newHotelId);
-    setRoomId(hotelsData[newHotelId].rooms[0].id);
-    if (newHotelId === 'foung' || newHotelId === 'heyu') {
-      setAddBreakfast(false); // 這兩間不含早
-    } else {
-      setAddBreakfast(true);
-    }
-  };
-
-  const handleAdjustmentChange = (id, field, value) => {
-    setFlightAdjustments(prev => prev.map(adj => adj.id === id ? { ...adj, [field]: value } : adj));
-  };
-
-  const toggleTour = (tourId) => {
-    setSelectedTours(prev => prev.includes(tourId) ? prev.filter(id => id !== tourId) : [...prev, tourId]);
-  };
-
-  const insuranceCostPerPerson = useMemo(() => {
-    const days = nights + 1;
-    // 三天兩夜保險 105 元，多一天加 30 元，少一天(2天1夜)以 75 元計算
-    return days <= 2 ? 75 : 105 + (days - 3) * 30;
-  }, [nights]);
-
-  const checkInJudge = useMemo(() => {
-    const d = new Date(startDateStr);
-    if (isNaN(d.getTime())) return null;
-    return hotelsData[hotelId].judge(d);
-  }, [startDateStr, hotelId]);
-
-  // 各供應商目前勾選的項目計數
-  const tourSlicesCount = useMemo(() => {
-    const counts = {};
-    selectedTours.forEach(tourId => {
-      const tour = localToursDatabase.find(t => t.id === tourId);
-      if (tour) {
-        counts[tour.supplierId] = (counts[tour.supplierId] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [selectedTours]);
-
-  const flightCalculations = useMemo(() => {
-    const route = flightBrands[flightBrand].routes.find(r => r.id === flightId);
-    if (!route || transportType === 'ferry') return { adult: 0, child: 0, senior: 0, infant: 0, surchargesSum: 0 };
-    let extraSurcharge = flightAdjustments.filter(a => a.enabled).reduce((sum, a) => sum + Number(a.amount), 0);
-    return {
-      adult: manualPriceAdult !== '' ? Number(manualPriceAdult) : route.prices.adult + extraSurcharge,
-      child: manualPriceChild !== '' ? Number(manualPriceChild) : route.prices.child + extraSurcharge,
-      senior: manualPriceSenior !== '' ? Number(manualPriceSenior) : route.prices.senior + extraSurcharge,
-      infant: manualPriceInfant !== '' ? Number(manualPriceInfant) : 500,
-      surchargesSum: extraSurcharge
-    };
-  }, [startDateStr, transportType, flightBrand, flightId, flightAdjustments, manualPriceAdult, manualPriceChild, manualPriceSenior, manualPriceInfant]);
-
-  const tourCalculations = useMemo(() => {
-    let adultTourTotal = 0, childTourTotal = 0, seniorTourTotal = 0, infantTourTotal = 0, selectedTourDetails = [];
-    selectedTours.forEach(tourId => {
-      const tour = localToursDatabase.find(t => t.id === tourId);
-      if (tour) {
-        let aPrice = tour.prices.adult, cPrice = tour.prices.child, sPrice = tour.prices.senior, iPrice = tour.prices.infant;
-        if (tour.type === 'scooter') {
-           const scooterCount = Math.ceil(basePax / 2);
-           aPrice = paxAdult > 0 ? (scooterCount * tour.prices.adult / paxAdult) : 0; 
-           cPrice = 0; sPrice = 0; iPrice = 0;
+      // --- 核心更新：機車成本計費引擎 ---
+      const scooterCalculations = useMemo(() => {
+        if (!addScooter) return { totalCost: 0, costPerPax: 0, daysLabel: '自理', pricePerVehicle: 0 };
+        let pricePerVehicle = 0;
+        let label = '';
+        if (transportType === 'flight') {
+          pricePerVehicle = totalDays * 250;
+          label = `${totalDays} 天 (整日計)`;
+        } else {
+          const fullDays = totalDays - 1;
+          pricePerVehicle = (fullDays * 250) + 200;
+          label = `${fullDays}.5 天 (${fullDays}天24h + 5h)`;
         }
-        adultTourTotal += aPrice; childTourTotal += cPrice; seniorTourTotal += sPrice; infantTourTotal += iPrice;
-        selectedTourDetails.push(tour);
-      }
-    });
-    return { 
-      adultTourTotal, childTourTotal, seniorTourTotal, infantTourTotal, 
-      totalTourNet: (adultTourTotal * paxAdult) + (childTourTotal * paxChild) + (seniorTourTotal * paxSenior) + (infantTourTotal * paxInfant), 
-      details: selectedTourDetails 
-    };
-  }, [selectedTours, paxAdult, paxChild, paxSenior, paxInfant, basePax]);
+        const totalCost = pricePerVehicle * scooterCount;
+        return { 
+          totalCost, 
+          costPerPax: basePax > 0 ? (totalCost / basePax) : 0, 
+          daysLabel: label, 
+          pricePerVehicle 
+        };
+      }, [addScooter, transportType, totalDays, scooterCount, basePax]);
 
-  const calculation = useMemo(() => {
-    const d = new Date(startDateStr);
-    if (isNaN(d.getTime()) || !checkInJudge || (basePax + paxInfant) === 0) return { error: true };
-    const hotel = hotelsData[hotelId];
-    const returnDate = new Date(d); returnDate.setDate(d.getDate() + nights);
-    
-    // 1. 交通客運大加總
-    let transportTotalNet = 0, transportNetPerPax = { adult: 0, child: 0, senior: 0, infant: 0 };
-    if (transportType === 'flight') {
-      transportNetPerPax = { adult: flightCalculations.adult, child: flightCalculations.child, senior: flightCalculations.senior, infant: flightCalculations.infant };
-      transportTotalNet = (transportNetPerPax.adult * paxAdult) + (transportNetPerPax.child * paxChild) + (transportNetPerPax.senior * paxSenior) + (transportNetPerPax.infant * paxInfant);
-    } else {
-      const boatPrice = ([0, 1, 2, 3, 4].includes(d.getDay()) ? 650 : 750) + ([2, 3, 4, 5, 6].includes(returnDate.getDay()) ? 650 : 750);
-      transportNetPerPax = { adult: boatPrice, child: boatPrice, senior: boatPrice, infant: 200 };
-      transportTotalNet = (boatPrice * basePax) + (200 * paxInfant);
-    }
+      const flightCalculations = useMemo(() => {
+        const route = flightBrands[flightBrand].routes.find(r => r.id === flightId);
+        if (!route || transportType === 'ferry') return { adult: 0, child: 0, senior: 0, infant: 0 };
+        let extraSurcharge = flightAdjustments.filter(a => a.enabled).reduce((sum, a) => sum + Number(a.amount), 0);
+        return {
+          adult: route.prices.adult + extraSurcharge,
+          child: route.prices.child + extraSurcharge,
+          senior: route.prices.senior + extraSurcharge,
+          infant: 500
+        };
+      }, [transportType, flightBrand, flightId, flightAdjustments]);
 
-    // 2. 住宿大加總 (逐日精算 Daily Loop)
-    let totalHotelCost = 0;
-    let nightBreakdown = [];
-    for (let i = 0; i < nights; i++) {
-      const currentNight = new Date(d); currentNight.setDate(d.getDate() + i);
-      const nightJudge = hotel.judge(currentNight);
-      let nightPriceKey = '';
-      
-      if (hotelId === 'hitachi') {
-        // 日立大飯店：特有「含早/免早」整併價格 Key
-        nightPriceKey = `${nightJudge.seasonKey}_${addBreakfast ? 'with_b' : 'no_b'}`;
-      } else {
-        // 一般飯店 A/B/C 或平日假日 Key
-        nightPriceKey = nightJudge.priceKey;
-      }
-      
-      const nightPrice = hotel.prices[roomId]?.[nightPriceKey] || 0;
-      totalHotelCost += nightPrice * rooms;
-      nightBreakdown.push({ 
-        dateStr: `${currentNight.getMonth() + 1}/${currentNight.getDate()}`, 
-        dayOfWeek: daysOfWeek[currentNight.getDay()], 
-        label: nightJudge.label || nightJudge.priceKey, 
-        price: nightPrice 
-      });
-    }
+      const tourCalculations = useMemo(() => {
+        let adultTourTotal = 0, childTourTotal = 0, seniorTourTotal = 0, infantTourTotal = 0, selectedTourDetails = [];
+        selectedTours.forEach(tourId => {
+          const tour = localToursDatabase.find(t => t.id === tourId);
+          if (tour) {
+            adultTourTotal += tour.prices.adult; childTourTotal += tour.prices.child; 
+            seniorTourTotal += tour.prices.senior; infantTourTotal += tour.prices.infant;
+            selectedTourDetails.push(tour);
+          }
+        });
+        return { 
+          adultTourTotal, childTourTotal, seniorTourTotal, infantTourTotal, 
+          totalTourNet: (adultTourTotal * paxAdult) + (childTourTotal * paxChild) + (seniorTourTotal * paxSenior) + (infantTourTotal * paxInfant), 
+          details: selectedTourDetails 
+        };
+      }, [selectedTours, paxAdult, paxChild, paxSenior, paxInfant]);
 
-    // 傳統非含早飯店的早餐加購費
-    const totalBreakfastCost = (hotelId !== 'hitachi' && !hotel.breakfastIncluded && addBreakfast) ? (hotel.breakfastCost * basePax * nights) : 0;
-    
-    // 3. 飯店與交通毛利分流 (將房價均攤給佔床人數，嬰兒不分攤)
-    const totalHotelAndBreakfastNet = totalHotelCost + totalBreakfastCost;
-    const hotelNetPerPax = basePax > 0 ? (totalHotelAndBreakfastNet / basePax) : 0;
-
-    // 4. 新增：保險成本 (保險費為全人頭收費，且為實支 NET 成本)
-    const totalInsuranceNet = insuranceCostPerPerson * totalPax;
-
-    // 5. 各別每人總成本累計 (NET)
-    const netAdult = hotelNetPerPax + transportNetPerPax.adult + tourCalculations.adultTourTotal + insuranceCostPerPerson;
-    const netChild = hotelNetPerPax + transportNetPerPax.child + tourCalculations.childTourTotal + insuranceCostPerPerson;
-    const netSenior = hotelNetPerPax + transportNetPerPax.senior + tourCalculations.seniorTourTotal + insuranceCostPerPerson;
-    const netInfant = transportNetPerPax.infant + tourCalculations.infantTourTotal + insuranceCostPerPerson;
-
-    // 進位百元計算 (嬰兒不套用毛利，直接實支實收百元進位)
-    const getSellPrice = (net) => Math.ceil((net * (1 + markupValue / 100)) / 100) * 100;
-    const sellPriceAdult = paxAdult > 0 ? getSellPrice(netAdult) : 0;
-    const sellPriceChild = paxChild > 0 ? getSellPrice(netChild) : 0;
-    const sellPriceSenior = paxSenior > 0 ? getSellPrice(netSenior) : 0;
-    const sellPriceInfant = paxInfant > 0 ? Math.ceil(netInfant / 100) * 100 : 0;
-
-    const totalSell = (sellPriceAdult * paxAdult) + (sellPriceChild * paxChild) + (sellPriceSenior * paxSenior) + (sellPriceInfant * paxInfant);
-    const totalNet = totalHotelAndBreakfastNet + transportTotalNet + tourCalculations.totalTourNet + totalInsuranceNet;
-
-    return {
-      nightBreakdown,
-      totalHotelNet: totalHotelCost,
-      totalBreakfastCost,
-      transportTotalNet,
-      tourTotalNet: tourCalculations.totalTourNet,
-      totalInsuranceNet,
-      totalNet,
-      totalSell,
-      profit: totalSell - totalNet,
-      sellPriceAdult, sellPriceChild, sellPriceSenior, sellPriceInfant,
-      transportNetPerPax, hotelNetPerPax,
-      dayName: daysOfWeek[d.getDay()],
-      returnDayName: daysOfWeek[returnDate.getDay()],
-      error: false
-    };
-  }, [startDateStr, paxAdult, paxChild, paxSenior, paxInfant, basePax, rooms, nights, transportType, addBreakfast, hotelId, roomId, markupValue, checkInJudge, flightCalculations, tourCalculations, insuranceCostPerPerson, totalPax]);
-
-  // 行程列表依據當前選取之活動供應商進行篩選
-  const filteredTours = useMemo(() => {
-    return localToursDatabase.filter(t => t.supplierId === activeSupplierId);
-  }, [activeSupplierId]);
-
-  const handleCopy = () => {
-    if (calculation.error) return;
-    const hotel = hotelsData[hotelId];
-    const room = hotel.rooms.find(r => r.id === roomId);
-    
-    let priceDetails = ``;
-    if (paxAdult > 0) priceDetails += `成人 ${calculation.sellPriceAdult.toLocaleString()} 元/人\n`;
-    if (paxChild > 0) priceDetails += `兒童 ${calculation.sellPriceChild.toLocaleString()} 元/人\n`;
-    if (paxSenior > 0) priceDetails += `優待 ${calculation.sellPriceSenior.toLocaleString()} 元/人\n`;
-    if (paxInfant > 0) priceDetails += `嬰兒 ${calculation.sellPriceInfant.toLocaleString()} 元/人\n`;
-
-    const startLocation = transportType === 'flight' ? flightBrands[flightBrand].routes.find(r => r.id === flightId)?.name : '嘉義布袋港';
-    const transText = transportType === 'flight' ? `${flightBrands[flightBrand].name}${startLocation}來回機票` : '嘉義布袋澎湖來回船票';
-    const breakfastText = hotelId === 'hitachi' ? (addBreakfast ? '包含早餐' : '不含早餐') : (hotel.breakfastIncluded || addBreakfast ? '含早餐' : '不包含早餐');
-
-    let tourBulletPoints = '';
-    if (tourCalculations.details.length > 0) {
-      tourBulletPoints = tourCalculations.details.map(t => `*${t.name} - ${t.desc}`).join('\n') + '\n';
-    }
-
-    // 計算機車數量，若有勾選交通模組或自動分配
-    const scooterCount = Math.ceil(basePax / 2);
-
-    const text = `澎湖 ${nights + 1}天${nights}夜 自由行報價
-
-🔺出發日期：${startDateStr.replace(/-/g, '/')} (${calculation.dayName ? calculation.dayName.replace('星期', '') : ''})
-
-🔺交通資訊
-出發地點：${startLocation}
-交通工具：${transText}
-本島交通：本島機車 ${scooterCount} 台 
-
-🔺旅宿資訊：
-* 住宿飯店：${hotel.name}${room?.name ? room.name : ''}
-* 住宿晚數：${nights} 晚 (${breakfastText})
-
-🔺報價金額： 
-${priceDetails.trim()}
-
-🔺報價內容包含
-*${transText}
-*${hotel.name}住宿 ${nights} 晚 (${breakfastText})
-${tourBulletPoints}*本島機車租賃 ${scooterCount} 台
-*旅遊責任保險250萬+20萬
-
-🔺上述報價請參考，實際機(船)位與旅宿狀況，均以確認後訂出回覆為準。歡迎與我們討論並確認相關細節，預祝你有一個愉快的假期！`;
-
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-999999px";
-    textArea.style.top = "-999999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    
-    try {
-      document.execCommand('copy');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('無法複製', err);
-    }
-    document.body.removeChild(textArea);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-800 font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
+      // 大總決算
+      const calculation = useMemo(() => {
+        const d = new Date(startDateStr);
+        if (isNaN(d.getTime()) || !checkInJudge || (basePax + paxInfant) === 0) return { error: true };
+        const hotel = hotelsData[hotelId];
+        const returnDate = new Date(d); returnDate.setDate(d.getDate() + nights);
         
-        {/* 頁首 Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 rounded-xl shadow-sm"><Calculator className="text-white w-6 h-6" /></div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-800">澎湖一站式報價系統</h1>
-              <span className="text-sm font-bold text-indigo-500">v2026 ERP (日立大飯店與保險升級版)</span>
-            </div>
-          </div>
-        </div>
+        let transportTotalNet = 0, transportNetPerPax = { adult: 0, child: 0, senior: 0, infant: 0 };
+        if (transportType === 'flight') {
+          transportNetPerPax = { adult: flightCalculations.adult, child: flightCalculations.child, senior: flightCalculations.senior, infant: flightCalculations.infant };
+          transportTotalNet = (transportNetPerPax.adult * paxAdult) + (transportNetPerPax.child * paxChild) + (transportNetPerPax.senior * paxSenior) + (transportNetPerPax.infant * paxInfant);
+        } else {
+          const boatPrice = ([0, 1, 2, 3, 4].includes(d.getDay()) ? 650 : 750) + ([2, 3, 4, 5, 6].includes(returnDate.getDay()) ? 650 : 750);
+          transportNetPerPax = { adult: boatPrice, child: boatPrice, senior: boatPrice, infant: 200 };
+          transportTotalNet = (boatPrice * basePax) + (200 * paxInfant);
+        }
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
+        let totalHotelCost = 0;
+        let nightBreakdown = [];
+        for (let i = 0; i < nights; i++) {
+          const currentNight = new Date(d); currentNight.setDate(d.getDate() + i);
+          const nightJudge = hotel.judge(currentNight);
+          let nightPriceKey = '';
+          
+          if (hotelId === 'hitachi') {
+            nightPriceKey = `${nightJudge.seasonKey}_${addBreakfast ? 'with_b' : 'no_b'}`;
+          } else {
+            nightPriceKey = nightJudge.priceKey;
+          }
+          
+          const nightPrice = hotel.prices[roomId]?.[nightPriceKey] || 0;
+          totalHotelCost += nightPrice * rooms;
+          nightBreakdown.push({ 
+            dateStr: `${currentNight.getMonth() + 1}/${currentNight.getDate()}`, 
+            dayOfWeek: daysOfWeek[currentNight.getDay()], 
+            label: nightJudge.label || nightJudge.priceKey, 
+            price: nightPrice 
+          });
+        }
+
+        const totalBreakfastCost = (hotelId !== 'hitachi' && !hotel.breakfastIncluded && addBreakfast) ? (hotel.breakfastCost * basePax * nights) : 0;
+        const totalHotelAndBreakfastNet = totalHotelCost + totalBreakfastCost;
+        const hotelNetPerPax = basePax > 0 ? (totalHotelAndBreakfastNet / basePax) : 0;
+        const totalInsuranceNet = insuranceCostPerPerson * totalPax;
+
+        // 加入機車均攤成本 scooterCalculations.costPerPax
+        const netAdult = hotelNetPerPax + transportNetPerPax.adult + tourCalculations.adultTourTotal + scooterCalculations.costPerPax + insuranceCostPerPerson;
+        const netChild = hotelNetPerPax + transportNetPerPax.child + tourCalculations.childTourTotal + scooterCalculations.costPerPax + insuranceCostPerPerson;
+        const netSenior = hotelNetPerPax + transportNetPerPax.senior + tourCalculations.seniorTourTotal + scooterCalculations.costPerPax + insuranceCostPerPerson;
+        const netInfant = transportNetPerPax.infant + tourCalculations.infantTourTotal + insuranceCostPerPerson;
+
+        const getSellPrice = (net) => Math.ceil((net * (1 + markupValue / 100)) / 100) * 100;
+        const sellPriceAdult = paxAdult > 0 ? getSellPrice(netAdult) : 0;
+        const sellPriceChild = paxChild > 0 ? getSellPrice(netChild) : 0;
+        const sellPriceSenior = paxSenior > 0 ? getSellPrice(netSenior) : 0;
+        const sellPriceInfant = paxInfant > 0 ? Math.ceil(netInfant / 100) * 100 : 0;
+
+        const totalSell = (sellPriceAdult * paxAdult) + (sellPriceChild * paxChild) + (sellPriceSenior * paxSenior) + (sellPriceInfant * paxInfant);
+        // 加入機車總成本 scooterCalculations.totalCost
+        const totalNet = totalHotelAndBreakfastNet + transportTotalNet + tourCalculations.totalTourNet + scooterCalculations.totalCost + totalInsuranceNet;
+
+        return {
+          nightBreakdown, totalHotelNet: totalHotelCost, totalBreakfastCost, transportTotalNet, tourTotalNet: tourCalculations.totalTourNet,
+          totalInsuranceNet, totalNet, totalSell, profit: totalSell - totalNet,
+          sellPriceAdult, sellPriceChild, sellPriceSenior, sellPriceInfant,
+          transportNetPerPax, hotelNetPerPax, dayName: daysOfWeek[d.getDay()], returnDayName: daysOfWeek[returnDate.getDay()], error: false
+        };
+      }, [startDateStr, paxAdult, paxChild, paxSenior, paxInfant, basePax, rooms, nights, transportType, addBreakfast, hotelId, roomId, markupValue, checkInJudge, flightCalculations, tourCalculations, scooterCalculations, insuranceCostPerPerson, totalPax]);
+
+      const filteredTours = useMemo(() => {
+        return localToursDatabase.filter(t => t.supplierId === activeSupplierId);
+      }, [activeSupplierId]);
+
+      const handleCopy = () => {
+        if (calculation.error) return;
+        const hotel = hotelsData[hotelId];
+        const room = hotel.rooms.find(r => r.id === roomId);
+        
+        let priceDetails = ``;
+        if (paxAdult > 0) priceDetails += `成人 ${calculation.sellPriceAdult.toLocaleString()} 元/人\n`;
+        if (paxChild > 0) priceDetails += `兒童 ${calculation.sellPriceChild.toLocaleString()} 元/人\n`;
+        if (paxSenior > 0) priceDetails += `優待 ${calculation.sellPriceSenior.toLocaleString()} 元/人\n`;
+        if (paxInfant > 0) priceDetails += `嬰兒 ${calculation.sellPriceInfant.toLocaleString()} 元/人\n`;
+
+        const startLocation = transportType === 'flight' ? flightBrands[flightBrand].routes.find(r => r.id === flightId)?.name : '嘉義布袋港';
+        const transText = transportType === 'flight' ? `${flightBrands[flightBrand].name}${startLocation}來回機票` : '嘉義布袋澎湖來回船票';
+        const breakfastText = hotelId === 'hitachi' ? (addBreakfast ? '包含早餐' : '不含早餐') : (hotel.breakfastIncluded || addBreakfast ? '含早餐' : '不含早餐');
+
+        let tourBulletPoints = '';
+        if (tourCalculations.details.length > 0) {
+          tourBulletPoints = tourCalculations.details.map(t => `*${t.name} - ${t.desc}`).join('\n') + '\n';
+        }
+
+        const text = `澎湖 ${totalDays}天${nights}夜 自由行報價\n\n🔺出發日期：${startDateStr.replace(/-/g, '/')} (${calculation.dayName ? calculation.dayName.replace('星期', '') : ''})\n\n🔺交通資訊\n出發地點：${startLocation}\n交通工具：${transText}\n本島交通：${addScooter ? `本島機車 ${scooterCount} 台` : '自理 (或未添加)'} \n\n🔺旅宿資訊：\n* 住宿飯店：${hotel.name}${room?.name ? room.name.replace(/\(.*?\)/g, '') : ''}\n* 住宿晚數：${nights} 晚 (${breakfastText})\n\n🔺報價金額： \n${priceDetails.trim()}\n\n🔺報價內容包含\n*${transText}\n*${hotel.name}住宿 ${nights} 晚 (${breakfastText})\n${addScooter ? `*本島機車租賃 ${scooterCount} 台 (${scooterCalculations.daysLabel})\n` : ''}${tourBulletPoints}*旅遊責任保險250萬+20萬\n\n🔺上述報價請參考，實際機(船)位與旅宿狀況，均以確認後訂出回覆為準。歡迎與我們討論並確認相關細節，預祝你有一個愉快的假期！`;
+
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) {}
+        document.body.removeChild(textArea);
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-800 font-sans">
+          <div className="max-w-6xl mx-auto space-y-6">
             
-            {/* 1. 日期與旅客結構 */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h2 className="flex items-center gap-2 font-bold mb-5 text-slate-700 text-lg"><Calendar className="w-5 h-5 text-indigo-500" /> 1. 日期與旅客結構</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-600 p-2.5 rounded-xl shadow-sm"><Calculator className="text-white w-6 h-6" /></div>
                 <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">出發日期</label>
-                  <input type="date" value={startDateStr} onChange={(e) => setStartDateStr(e.target.value)} className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">住宿晚數</label>
-                  <input type="number" min="1" value={nights} onChange={(e) => setNights(Number(e.target.value))} className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-                </div>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
-                <div className="text-xs font-bold text-slate-500 mb-3 flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5" /> 旅客類型人數設定 (票價區分)
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-white p-3 rounded-lg border text-center">
-                    <span className="block text-xs font-bold text-slate-500 mb-1">成人 (12-64歲)</span>
-                    <input type="number" min="0" value={paxAdult} onChange={(e) => setPaxAdult(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold text-lg p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border text-center">
-                    <span className="block text-xs font-bold text-slate-500 mb-1">兒童 (2-11歲)</span>
-                    <input type="number" min="0" value={paxChild} onChange={(e) => setPaxChild(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold text-lg p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border text-center">
-                    <span className="block text-xs font-bold text-slate-500 mb-1">優待 (65歲+)</span>
-                    <input type="number" min="0" value={paxSenior} onChange={(e) => setPaxSenior(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold text-lg p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border text-center ring-1 ring-amber-100">
-                    <span className="block text-xs font-bold text-amber-500 mb-1 flex justify-center items-center gap-1"><Baby className="w-3.5 h-3.5"/>嬰兒 (0-2歲)</span>
-                    <input type="number" min="0" value={paxInfant} onChange={(e) => setPaxInfant(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold text-lg p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none" />
-                  </div>
+                  <h1 className="text-xl font-bold text-slate-800">澎湖一站式報價系統</h1>
+                  <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">v2026 ERP (穩定 HTML/VSCode 專用版)</span>
                 </div>
               </div>
             </div>
 
-            {/* 2. 住宿選擇 (整合日立大飯店與含早免早特規) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4">
-                {checkInJudge && <div className="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-bold border border-indigo-100">首日判定：{checkInJudge.label}</div>}
-              </div>
-              <h2 className="flex items-center gap-2 font-bold mb-5 text-slate-700 text-lg"><Building className="w-5 h-5 text-indigo-500" /> 2. 住宿選擇 (包含全新日立大飯店)</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">選擇飯店</label>
-                  <select value={hotelId} onChange={(e) => handleHotelChange(e.target.value)} className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none">
-                    {Object.values(hotelsData).map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">房型選擇</label>
-                  <select value={roomId} onChange={(e) => setRoomId(e.target.value)} className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none">
-                    {hotelsData[hotelId].rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-6 items-center border-t border-slate-100 pt-5">
-                <div className="flex items-center gap-3"><span className="text-sm font-bold text-slate-600">需求間數</span><input type="number" min="1" value={rooms} onChange={(e) => setRooms(Number(e.target.value))} className="w-20 p-2 border border-slate-200 rounded-lg text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500" /></div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
                 
-                {/* 飯店早餐控制：日立飯店支援無早餐價格 */}
-                {(hotelId === 'hitachi' || !hotelsData[hotelId].breakfastIncluded) && (
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={addBreakfast} onChange={(e) => setAddBreakfast(e.target.checked)} className="w-5 h-5 text-indigo-600 rounded" />
-                    <span className="text-sm font-bold text-slate-600">
-                      {hotelId === 'hitachi' ? '包含早餐行程報價' : `加購飯店早餐 ($${hotelsData[hotelId].breakfastCost}/晚)`}
-                    </span>
-                  </label>
-                )}
-              </div>
-            </div>
-
-            {/* 3. 大眾交通設定 */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h2 className="flex items-center gap-2 font-bold mb-5 text-slate-700 text-lg"><Plane className="w-5 h-5 text-indigo-500" /> 3. 大眾交通設定</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                <div className="flex p-1 bg-slate-100 rounded-xl h-[52px]">
-                  <button onClick={() => setTransportType('flight')} className={`flex-1 rounded-lg text-sm font-bold transition-all ${transportType === 'flight' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>航空機票</button>
-                  <button onClick={() => setTransportType('ferry')} className={`flex-1 rounded-lg text-sm font-bold transition-all ${transportType === 'ferry' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>嘉義船票</button>
+                {/* 1. 日期與人數 */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <h2 className="flex items-center gap-2 font-bold mb-4 text-slate-700 text-sm"><Calendar className="w-4 h-4 text-indigo-500" /> 1. 日期與旅客結構</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div><label className="text-xs font-bold text-slate-400">出發日期</label><input type="date" value={startDateStr} onChange={(e) => setStartDateStr(e.target.value)} className="w-full mt-1 p-2.5 bg-slate-50 border rounded-lg font-medium outline-none text-sm" /></div>
+                    <div><label className="text-xs font-bold text-slate-400">住宿晚數</label><input type="number" min="1" value={nights} onChange={(e) => setNights(Number(e.target.value))} className="w-full mt-1 p-2.5 bg-slate-50 border rounded-lg font-bold outline-none text-center text-sm" /></div>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg border text-xs grid grid-cols-4 gap-2">
+                    <div><span className="block font-bold text-slate-500 text-center mb-1">成人</span><input type="number" min="0" value={paxAdult} onChange={(e) => setPaxAdult(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold p-1.5 border rounded" /></div>
+                    <div><span className="block font-bold text-slate-500 text-center mb-1">兒童</span><input type="number" min="0" value={paxChild} onChange={(e) => setPaxChild(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold p-1.5 border rounded" /></div>
+                    <div><span className="block font-bold text-slate-500 text-center mb-1">長者</span><input type="number" min="0" value={paxSenior} onChange={(e) => setPaxSenior(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold p-1.5 border rounded" /></div>
+                    <div><span className="block font-bold text-amber-600 text-center mb-1 flex justify-center"><Baby className="w-3 h-3"/>嬰兒</span><input type="number" min="0" value={paxInfant} onChange={(e) => setPaxInfant(Math.max(0, Number(e.target.value)))} className="w-full text-center font-bold p-1.5 border rounded" /></div>
+                  </div>
                 </div>
-                {transportType === 'flight' ? (
-                  <div className="flex gap-2">
-                    <select value={flightBrand} onChange={(e) => setFlightBrand(e.target.value)} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none">
-                      <option value="uniair">立榮航空</option><option value="mandarin">華信航空</option>
-                    </select>
-                    <select value={flightId} onChange={(e) => setFlightId(e.target.value)} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none">
-                      {flightBrands[flightBrand].routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
+
+                {/* 2. 住宿選擇 */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <h2 className="flex items-center gap-2 font-bold mb-4 text-slate-700 text-sm"><Building className="w-4 h-4 text-indigo-500" /> 2. 住宿選擇 (含日立雙軌報價)</h2>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <select value={hotelId} onChange={(e) => handleHotelChange(e.target.value)} className="p-2.5 bg-slate-50 border rounded-lg font-bold text-sm outline-none">{Object.values(hotelsData).map(h => <option key={h.id} value={h.id}>{h.name}</option>)}</select>
+                    <select value={roomId} onChange={(e) => setRoomId(e.target.value)} className="p-2.5 bg-slate-50 border rounded-lg font-bold text-sm outline-none">{hotelsData[hotelId].rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2 px-4 text-sm text-indigo-600 font-bold bg-indigo-50 rounded-xl border border-indigo-100">
-                    <Ship className="w-5 h-5" /> 回程預計：{calculation.returnDayName || '計算中'}
-                  </div>
-                )}
-              </div>
-              
-              {transportType === 'flight' && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60">
-                  <div className="text-xs font-bold text-slate-500 mb-3 flex items-center justify-between">
-                    <span>機票加減價微調 (僅針對3歲以上)</span>
-                    <span className="text-indigo-600">已計入：{flightCalculations.surchargesSum > 0 ? '+' : ''}{flightCalculations.surchargesSum}/人</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                    {flightAdjustments.map((rule) => (
-                      <label key={rule.id} className={`flex flex-col p-2.5 rounded-lg border cursor-pointer transition-colors ${rule.enabled ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200'}`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <input type="checkbox" checked={rule.enabled} onChange={(e) => handleAdjustmentChange(rule.id, 'enabled', e.target.checked)} className="rounded text-indigo-600" />
-                          <span className="text-xs font-bold text-slate-700">{rule.name}</span>
-                        </div>
-                        {rule.enabled && (
-                          <input type="number" value={rule.amount} onChange={(e) => handleAdjustmentChange(rule.id, 'amount', e.target.value)} className="w-full text-right text-xs font-bold p-1 border rounded bg-white mt-1 outline-none focus:border-indigo-500" />
-                        )}
+                  <div className="flex items-center justify-between border-t pt-3 text-xs">
+                    <div className="flex items-center gap-2"><span className="font-bold text-slate-600">需求間數:</span><input type="number" min="1" value={rooms} onChange={(e) => setRooms(Number(e.target.value))} className="w-12 p-1.5 border rounded text-center font-bold" /></div>
+                    {(hotelId === 'hitachi' || !hotelsData[hotelId].breakfastIncluded) && (
+                      <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1.5 rounded-lg border">
+                        <input type="checkbox" checked={addBreakfast} onChange={(e) => setAddBreakfast(e.target.checked)} className="w-3.5 h-3.5 text-indigo-600 rounded" />
+                        <span className="font-bold text-slate-600">{hotelId === 'hitachi' ? '專案含早餐' : `加購早餐 ($${hotelsData[hotelId].breakfastCost})`}</span>
                       </label>
-                    ))}
+                    )}
                   </div>
-                  {paxInfant > 0 && (
-                     <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-600 flex items-center gap-1"><Baby className="w-3.5 h-3.5"/>嬰兒機票稅金手動覆蓋</span>
-                        <input type="number" placeholder="預設 $500" value={manualPriceInfant} onChange={(e) => setManualPriceInfant(e.target.value)} className="w-24 text-right text-xs font-bold p-1.5 border rounded bg-white outline-none focus:border-amber-500" />
-                     </div>
+                </div>
+
+                {/* 3. 交通設定 */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <h2 className="flex items-center gap-2 font-bold mb-4 text-slate-700 text-sm"><Plane className="w-4 h-4 text-indigo-500" /> 3. 大眾交通設定</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <div className="flex p-1 bg-slate-100 rounded-lg h-[42px]">
+                      <button onClick={() => setTransportType('flight')} className={`flex-1 rounded text-xs font-bold ${transportType === 'flight' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>機票</button>
+                      <button onClick={() => setTransportType('ferry')} className={`flex-1 rounded text-xs font-bold ${transportType === 'ferry' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>船票</button>
+                    </div>
+                    {transportType === 'flight' ? (
+                      <>
+                        <select value={flightBrand} onChange={(e) => setFlightBrand(e.target.value)} className="p-2 bg-slate-50 border rounded-lg font-bold text-xs h-[42px] outline-none"><option value="uniair">立榮航空</option><option value="mandarin">華信航空</option></select>
+                        <select value={flightId} onChange={(e) => setFlightId(e.target.value)} className="p-2 bg-slate-50 border rounded-lg font-bold text-xs h-[42px] outline-none">{flightBrands[flightBrand].routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+                      </>
+                    ) : (
+                      <div className="sm:col-span-2 flex items-center gap-2 px-3 text-xs text-indigo-600 font-bold bg-indigo-50 rounded-lg border border-indigo-100"><Ship className="w-4 h-4" /> 返台日：{calculation.returnDayName || ''}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3.5 機車選配 */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 font-bold text-slate-700 text-sm"><Bike className="w-4 h-4 text-indigo-500" /> 3.5 本島機車租賃 (可選配)</h2>
+                    <button onClick={() => setAddScooter(!addScooter)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${addScooter ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 border hover:bg-slate-200'}`}>
+                      {addScooter ? '✓ 已添加' : '+ 添加機車'}
+                    </button>
+                  </div>
+                  {addScooter ? (
+                    <div className="bg-slate-50 p-3 rounded-lg border space-y-2 text-xs">
+                      <div className="text-indigo-700 font-bold">按 <span className="text-red-500 font-black">{scooterCalculations.daysLabel}</span> 計費，每台成本 $${scooterCalculations.pricePerVehicle}。</div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 text-slate-600 font-bold cursor-pointer"><input type="checkbox" checked={overrideScooterCount} onChange={(e) => setOverrideScooterCount(e.target.checked)} className="rounded" />自訂數量</label>
+                        {overrideScooterCount ? (
+                          <div className="flex items-center gap-1"><input type="number" min="1" value={scooterCount} onChange={(e) => setScooterCount(Math.max(1, Number(e.target.value)))} className="w-14 p-1 text-center font-bold border rounded" /> 台</div>
+                        ) : (<span className="text-slate-500">自動分配：<span className="font-bold">{scooterCount}</span> 台</span>)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400 bg-slate-50 p-3 rounded-lg border border-dashed flex justify-center">未添加，報價單將顯示為自理。</div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* 4. 優化當地遊程與附加項目：活動供應商優先 UI 選單 */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="flex items-center gap-2 font-bold text-slate-700 text-lg">
-                  <Map className="w-5 h-5 text-indigo-500" /> 4. 當地遊程選配 (供應商聯動選單)
-                </h2>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5"/>已選 {selectedTours.length} 項
-                </span>
-              </div>
-
-              {/* 供應商優先：橫向 Pills Tabs 導航 */}
-              <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
-                {tourSuppliers.map(supplier => {
-                  const count = tourSlicesCount[supplier.id] || 0;
-                  const isActive = activeSupplierId === supplier.id;
-                  return (
-                    <button
-                      key={supplier.id}
-                      onClick={() => setActiveSupplierId(supplier.id)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
-                        isActive 
-                          ? 'bg-indigo-600 text-white shadow-md' 
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {supplier.name}
-                      {count > 0 && (
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono leading-none ${
-                          isActive ? 'bg-white text-indigo-600' : 'bg-indigo-600 text-white'
-                        }`}>
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 列出所選供應商的專屬行程 */}
-              <div className="space-y-3">
-                {filteredTours.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-6 text-center">該類別目前無提供項目</p>
-                ) : (
-                  filteredTours.map(tour => {
-                    const isSelected = selectedTours.includes(tour.id);
-                    return (
-                      <div 
-                        key={tour.id} 
-                        onClick={() => toggleTour(tour.id)}
-                        className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                          isSelected 
-                            ? 'bg-indigo-50/50 border-indigo-500 ring-1 ring-indigo-500' 
-                            : 'bg-white border-slate-200 hover:border-indigo-300'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
-                            isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'
-                          }`}>
-                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                {/* 4. 當地遊程 */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <div className="flex items-center justify-between mb-3"><h2 className="flex items-center gap-2 font-bold text-slate-700 text-sm"><MapIcon className="w-4 h-4 text-indigo-500" /> 4. 當地行程 (二級選單)</h2><span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">已選 {selectedTours.length}</span></div>
+                  <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-lg mb-3">
+                    {tourSuppliers.map(supplier => {
+                      const count = tourSlicesCount[supplier.id] || 0;
+                      const isActive = activeSupplierId === supplier.id;
+                      return (
+                        <button key={supplier.id} onClick={() => setActiveSupplierId(supplier.id)} className={`px-2.5 py-1.5 rounded text-[11px] font-bold transition-all flex items-center gap-1 ${isActive ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                          {supplier.name} {count > 0 && <span className="bg-indigo-600 text-white text-[9px] px-1.5 rounded-full">{count}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+                    {filteredTours.length === 0 ? <p className="text-xs text-center text-slate-400 py-4">無項目</p> : filteredTours.map(tour => {
+                      const isSelected = selectedTours.includes(tour.id);
+                      return (
+                        <div key={tour.id} onClick={() => toggleTour(tour.id)} className={`p-2.5 rounded-lg border text-xs cursor-pointer flex justify-between gap-2 ${isSelected ? 'border-indigo-500 bg-indigo-50/30' : 'bg-white hover:border-indigo-200'}`}>
+                          <div className="flex items-start gap-2">
+                            <div className={`w-3.5 h-3.5 mt-0.5 rounded border flex items-center justify-center text-[9px] ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'}`}>{isSelected && '✓'}</div>
+                            <div><span className="font-bold text-slate-700 block leading-tight">{tour.name}</span><span className="text-[10px] text-slate-400 mt-0.5 block">{tour.desc}</span></div>
                           </div>
-                          <div>
-                            <div className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                              {tour.name}
-                              {tour.note && <span className="text-[10px] text-indigo-500 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">{tour.note}</span>}
-                            </div>
-                            <div className="text-xs text-slate-400 mt-1 leading-relaxed">{tour.desc}</div>
-                          </div>
+                          <div className="font-mono text-[10px] text-slate-400 whitespace-nowrap pt-0.5">成 <span className="font-bold text-slate-700">${tour.prices.adult}</span></div>
                         </div>
-                        
-                        <div className="flex items-center gap-2.5 text-[11px] font-mono whitespace-nowrap bg-slate-50 p-2 rounded-lg border self-start sm:self-center">
-                          <div className="text-slate-500">成 <span className="font-bold text-slate-700">${tour.prices.adult}</span></div>
-                          <div className="text-slate-500">童 <span className="font-bold text-slate-700">${tour.prices.child}</span></div>
-                          <div className="text-slate-500">老 <span className="font-bold text-slate-700">${tour.prices.senior}</span></div>
-                          {tour.prices.infant !== undefined && (
-                            <div className="text-amber-500">保 <span className="font-bold text-amber-600">${tour.prices.infant}</span></div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-          </div>
-
-          {/* 右側：即時分流計算與明細看板 */}
-          <div className="space-y-6">
-            <div className="bg-slate-800 rounded-3xl p-7 text-white shadow-xl sticky top-6 border border-slate-700">
-              
-              {/* 分流售價顯示 */}
-              <div className="space-y-3 mb-6 pb-6 border-b border-slate-700">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest">分流建議售價 (SRP)</h3>
-                  <div className="text-[10px] bg-slate-700 px-2 py-1 rounded text-slate-300">毛利: {markupValue}%</div>
+                      );
+                    })}
+                  </div>
                 </div>
-                
-                {paxAdult > 0 && (
-                  <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                    <span className="text-slate-300 font-bold">👨 成人</span>
-                    <span className="text-2xl font-black text-amber-400">${calculation.sellPriceAdult?.toLocaleString()}</span>
-                  </div>
-                )}
-                {paxChild > 0 && (
-                  <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                    <span className="text-slate-300 font-bold">👦 兒童</span>
-                    <span className="text-2xl font-black text-sky-400">${calculation.sellPriceChild?.toLocaleString()}</span>
-                  </div>
-                )}
-                {paxSenior > 0 && (
-                  <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                    <span className="text-slate-300 font-bold">👵 優待</span>
-                    <span className="text-2xl font-black text-emerald-400">${calculation.sellPriceSenior?.toLocaleString()}</span>
-                  </div>
-                )}
-                {paxInfant > 0 && (
-                  <div className="flex justify-between items-center bg-amber-950/20 p-2.5 rounded-xl border border-amber-900/30">
-                    <span className="text-amber-500/80 font-bold text-xs flex items-center gap-1"><Baby className="w-3.5 h-3.5"/>嬰兒(實報實銷)</span>
-                    <span className="text-lg font-black text-amber-500">${calculation.sellPriceInfant?.toLocaleString()}</span>
-                  </div>
-                )}
+
               </div>
 
-              {/* 總計數據 */}
-              <div className="space-y-3 mb-6 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 font-bold">全團總售價</span>
-                  <span className="text-xl font-black text-white">${calculation.totalSell?.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">總成本 (NET)</span>
-                  <span className="text-slate-300">${calculation.totalNet?.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400 font-bold">
-                  <span>預估總毛利</span>
-                  <span>${calculation.profit?.toLocaleString()}</span>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <input type="range" min="0" max="40" value={markupValue} onChange={(e) => setMarkupValue(Number(e.target.value))} className="w-full accent-indigo-500" />
-                </div>
-                <button onClick={handleCopy} className={`w-full py-4 rounded-xl font-black flex items-center justify-center gap-2 transition-all ${copied ? 'bg-emerald-500 scale-95' : 'bg-indigo-500 hover:bg-indigo-400'}`}>
-                  {copied ? <CheckCircle2 className="w-5 h-5"/> : <Copy className="w-5 h-5"/>} {copied ? '已複製' : '一鍵複製報價明細'}
-                </button>
-              </div>
-
-              {/* 成本診斷分析 (含旅遊保險拆解) */}
-              {!calculation.error && (
-                <div className="mt-6 pt-5 border-t border-slate-700 text-[11px] text-slate-400 space-y-4">
-                  <div className="font-bold text-white mb-2 flex items-center gap-1.5"><TrendingUp className="w-4 h-4 text-indigo-400"/>單人 NET 成本結構拆解</div>
+              {/* 右側：看板 */}
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-3xl p-6 text-white shadow-xl sticky top-6">
                   
-                  <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-700 space-y-3 font-mono">
-                    
-                    {/* 機票 */}
-                    <div className="space-y-1">
-                      <div className="text-indigo-300 font-bold border-b border-slate-700 pb-1 mb-1">✈️ 交通 (含加價)</div>
-                      <div className="flex justify-between"><span>成人</span><span>${calculation.transportNetPerPax?.adult || 0}</span></div>
-                      {paxChild > 0 && <div className="flex justify-between"><span>兒童</span><span>${calculation.transportNetPerPax?.child || 0}</span></div>}
-                      {paxSenior > 0 && <div className="flex justify-between"><span>優待</span><span>${calculation.transportNetPerPax?.senior || 0}</span></div>}
-                      {paxInfant > 0 && <div className="flex justify-between text-amber-500/80"><span>嬰兒</span><span>${calculation.transportNetPerPax?.infant || 0}</span></div>}
-                    </div>
-
-                    {/* 行程 */}
-                    {selectedTours.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="text-emerald-300 font-bold border-b border-slate-700 pb-1 mb-1">🗺️ 遊程總計</div>
-                        <div className="flex justify-between"><span>成人</span><span>${tourCalculations.adultTourTotal}</span></div>
-                        {paxChild > 0 && <div className="flex justify-between"><span>兒童</span><span>${tourCalculations.childTourTotal}</span></div>}
-                        {paxSenior > 0 && <div className="flex justify-between"><span>優待</span><span>${tourCalculations.seniorTourTotal}</span></div>}
-                        {paxInfant > 0 && <div className="flex justify-between text-amber-500/80"><span>嬰兒</span><span>${tourCalculations.infantTourTotal}</span></div>}
-                      </div>
-                    )}
-
-                    {/* 住宿 */}
-                    <div className="space-y-1">
-                      <div className="text-amber-300 font-bold border-b border-slate-700 pb-1 mb-1">🏨 住宿均攤 ({nights}晚)</div>
-                      <div className="flex justify-between"><span>每人均攤</span><span>${Math.round(calculation.hotelNetPerPax)}</span></div>
-                      <div className="text-[9px] text-slate-500 mt-1 leading-relaxed">
-                        房費總計 ${calculation.totalHotelNet} + 早餐 ${calculation.totalBreakfastCost} / {basePax}人 (嬰兒不分攤)
-                      </div>
-                    </div>
-
-                    {/* 保險 */}
-                    <div className="space-y-1">
-                      <div className="text-sky-300 font-bold border-b border-slate-700 pb-1 mb-1">🛡️ 旅遊責任險</div>
-                      <div className="flex justify-between">
-                        <span>每人成本 ({nights + 1}天)</span>
-                        <span className="text-sky-400 font-bold">${insuranceCostPerPerson}</span>
-                      </div>
-                    </div>
-
+                  <div className="space-y-2.5 mb-5 pb-5 border-b border-slate-700">
+                    <h3 className="text-slate-400 text-[11px] font-bold uppercase">分流建議售價 (SRP)</h3>
+                    {paxAdult > 0 && <div className="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/50"><span className="text-slate-300 text-xs font-bold">👩 成人</span><span className="text-lg font-black text-amber-400">${calculation.sellPriceAdult?.toLocaleString()}</span></div>}
+                    {paxChild > 0 && <div className="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/50"><span className="text-slate-300 text-xs font-bold">👦 兒童</span><span className="text-lg font-black text-sky-400">${calculation.sellPriceChild?.toLocaleString()}</span></div>}
+                    {paxSenior > 0 && <div className="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/50"><span className="text-slate-300 text-xs font-bold">👵 優待</span><span className="text-lg font-black text-emerald-400">${calculation.sellPriceSenior?.toLocaleString()}</span></div>}
+                    {paxInfant > 0 && <div className="flex justify-between items-center bg-amber-950/20 p-2 rounded-lg border border-amber-900/30 text-[11px] text-amber-500"><span>👶 嬰兒 (實收)</span><span className="font-black">${calculation.sellPriceInfant?.toLocaleString()}</span></div>}
                   </div>
 
-                  {/* 飯店日曆細化診斷 */}
-                  <div className="space-y-1.5">
-                    <div className="font-bold text-white flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> 飯店每晚分拆淨價</div>
-                    <div className="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-1 text-[10px]">
-                      {calculation.nightBreakdown?.map((night, idx) => (
-                        <div key={idx} className="flex justify-between">
-                          <span>第 {idx+1} 晚 ({night.dateStr} {night.dayOfWeek})</span>
-                          <span className="text-yellow-400">${night.price} ({night.label})</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="space-y-2 mb-5 text-[11px] text-slate-300">
+                    <div className="flex justify-between"><span className="font-bold">全團總售價</span><span className="text-sm font-black text-white">${calculation.totalSell?.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span>同業總成本 (NET)</span><span>${calculation.totalNet?.toLocaleString()}</span></div>
+                    <div className="flex justify-between p-2 bg-emerald-500/10 rounded border border-emerald-500/20 text-emerald-400 font-bold"><span>預估總毛利</span><span>${calculation.profit?.toLocaleString()}</span></div>
                   </div>
+                  
+                  <div className="space-y-3">
+                    <div className="space-y-1"><label className="text-[10px] text-slate-400 font-bold">設定毛利: {markupValue}%</label><input type="range" min="0" max="40" value={markupValue} onChange={(e) => setMarkupValue(Number(e.target.value))} className="w-full accent-indigo-500" /></div>
+                    <button onClick={handleCopy} className={`w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${copied ? 'bg-emerald-500' : 'bg-indigo-500 hover:bg-indigo-400'}`}>{copied ? <CheckCircle2 className="w-4 h-4"/> : <Copy className="w-4 h-4"/>} {copied ? '已複製' : '一鍵複製報價明細'}</button>
+                  </div>
+
+                  {!calculation.error && (
+                    <div className="mt-5 pt-4 border-t border-slate-700 text-[10px] text-slate-400 space-y-2">
+                      <div className="font-bold text-white flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-indigo-400"/>單人 NET 拆解</div>
+                      <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-700 space-y-1 font-mono">
+                        <div className="flex justify-between text-indigo-300"><span>🏨 住宿均攤</span><span>${Math.round(calculation.hotelNetPerPax)}</span></div>
+                        {addScooter && <div className="flex justify-between text-amber-400"><span>🏍️ 機車均攤</span><span>${Math.round(scooterCalculations.costPerPax)}</span></div>}
+                        <div className="flex justify-between text-sky-400"><span>🛡️ 責任險</span><span>${insuranceCostPerPerson}</span></div>
+                      </div>
+                    </div>
+                  )}
 
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
