@@ -83,7 +83,7 @@
       return false;
     };
 
-    // --- 飯店數據與判定邏輯 ---
+    // --- 飯店數據與判定邏輯 (已加回喜來登、澎澄、海悅、彩虹文旅) ---
     const hotelsData = {
       hitachi: {
         id: 'hitachi', name: '澎湖日立大飯店', breakfastIncluded: false, breakfastCost: 0, 
@@ -111,6 +111,50 @@
           return { seasonKey: 'weekday', label: '旺季平日' };
         }
       },
+      sheraton: {
+        id: 'sheraton', name: '澎湖福朋喜來登酒店', breakfastIncluded: true,
+        rooms: [
+          { id: 'city_twin', name: '街景豪華雙床客房 (2中床)' },
+          { id: 'city_view_twin', name: '市景豪華雙床客房 (2中床)' },
+          { id: 'harbor_twin', name: '港景豪華雙床客房 (2中床)' },
+        ],
+        prices: {
+          city_twin: { off_peak_weekday: 3300, off_peak_weekend: 3800, shoulder_weekday: 3900, shoulder_weekend: 4400, peak_weekday: 4600, peak_weekend: 5100 },
+          city_view_twin: { off_peak_weekday: 3800, off_peak_weekend: 4300, shoulder_weekday: 4400, shoulder_weekend: 4900, peak_weekday: 5100, peak_weekend: 5600 },
+          harbor_twin: { off_peak_weekday: 4300, off_peak_weekend: 4800, shoulder_weekday: 4900, shoulder_weekend: 5400, peak_weekday: 5600, peak_weekend: 6100 }
+        },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          let season = 'peak'; let seasonName = '旺季';
+          if (m <= 2 || (m === 10 && d >= 16) || m >= 11) { season = 'off_peak'; seasonName = '淡季'; }
+          else if (m === 3 || m === 4 || m === 9 || (m === 10 && d <= 15)) { season = 'shoulder'; seasonName = '小旺季'; }
+          let isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d) || isFirework2026(m, d, day));
+          return { priceKey: `${season}_${isWeekend ? 'weekend' : 'weekday'}`, label: `${seasonName} / ${isWeekend ? '假日(含花火/連假)' : '平日'}` };
+        }
+      },
+      discovery: {
+        id: 'discovery', name: '澎澄飯店', breakfastIncluded: true,
+        rooms: [
+          { id: 'park_view', name: '園景探索客房 (2大床)' },
+          { id: 'harbor_view', name: '港景探索客房 (2大床)' },
+          { id: 'park_discovery', name: '園景澎澄客房 (1超大床)' },
+          { id: 'harbor_discovery_twin', name: '港景澎澄客房 (2中床)' },
+        ],
+        prices: {
+          park_view: { off_peak_weekday: 3250, off_peak_weekend: 3750, shoulder_weekday: 4500, shoulder_weekend: 5000, peak_weekday: 4800, peak_weekend: 5300 },
+          harbor_view: { off_peak_weekday: 3650, off_peak_weekend: 4150, shoulder_weekday: 4800, shoulder_weekend: 5300, peak_weekday: 5300, peak_weekend: 5800 },
+          park_discovery: { off_peak_weekday: 4050, off_peak_weekend: 4550, shoulder_weekday: 5100, shoulder_weekend: 5600, peak_weekday: 5800, peak_weekend: 6300 },
+          harbor_discovery_twin: { off_peak_weekday: 4450, off_peak_weekend: 4950, shoulder_weekday: 5400, shoulder_weekend: 5900, peak_weekday: 6300, peak_weekend: 6800 },
+        },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          let season = 'peak'; let seasonName = '旺季';
+          if (m <= 3 || (m === 10 && d >= 12) || m >= 11) { season = 'off_peak'; seasonName = '淡季'; }
+          else if (m === 4 || m === 8 || m === 9 || (m === 10 && d <= 11)) { season = 'shoulder'; seasonName = '小旺季'; }
+          const isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d));
+          return { priceKey: `${season}_${isWeekend ? 'weekend' : 'weekday'}`, label: `${seasonName} / ${isWeekend ? '假日' : '平日'}` };
+        }
+      },
       foung: {
         id: 'foung', name: '和田大飯店', breakfastIncluded: false, breakfastCost: 100,
         rooms: [ { id: 'std_double', name: '標準雙人房' }, { id: 'quad', name: '四人房' } ],
@@ -135,6 +179,44 @@
           if (m === 4 || m === 9 || m === 10) return { priceKey: isHoli ? 'C' : 'B', label: '小旺季' };
           if (isHoli || day === 0 || day === 1 || day === 4) return { priceKey: 'C', label: '花火/假日' };
           return { priceKey: 'B', label: '花火/平日' };
+        }
+      },
+      haiyue: {
+        id: 'haiyue', name: '海悅飯店', breakfastIncluded: true,
+        rooms: [
+          { id: 's2', name: '雅緻單床雙人房' },
+          { id: 't2', name: '晶典雙床雙人房' },
+          { id: 't4', name: '晶典雙床四人房' }
+        ],
+        prices: {
+          s2: { A: 2200, B: 2200, C_W: 2400, C_H: 2400, D_W: 2400, D_H: 2600 },
+          t2: { A: 2400, B: 2400, C_W: 2800, C_H: 3200, D_W: 3000, D_H: 3400 },
+          t4: { A: 2800, B: 3000, C_W: 3600, C_H: 4200, D_W: 4000, D_H: 4400 }
+        },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          let season = 'A'; if ([11, 12, 1, 2].includes(m)) season = 'A'; else if ([3, 10].includes(m)) season = 'B'; else if ([4, 8, 9].includes(m)) season = 'C'; else season = 'D';
+          let isWeekend = (day === 5 || day === 6 || day === 0 || isHoliday2026(m, d) || isFirework2026(m, d, day));
+          return { priceKey: (season === 'A' || season === 'B') ? season : `${season}_${isWeekend ? 'H' : 'W'}`, label: `海悅 / ${isWeekend ? '假日' : '平日'}` };
+        }
+      },
+      rainbow: {
+        id: 'rainbow', name: '彩虹文旅', breakfastIncluded: true,
+        rooms: [
+          { id: 's2', name: 'MINI 簡約雙人房' },
+          { id: 't2', name: 'MODA 品尚雙人房' },
+          { id: 't4', name: 'FAM 舒活四人房' }
+        ],
+        prices: {
+          s2: { A: 1400, B_W: 1700, B_H: 1900, C_W: 2200, C_H: 2600 },
+          t2: { A: 1600, B_W: 1900, B_H: 2100, C_W: 2400, C_H: 2800 },
+          t4: { A: 1900, B_W: 2200, B_H: 2650, C_W: 3100, C_H: 3600 },
+        },
+        judge: (date) => {
+          const m = date.getMonth() + 1; const d = date.getDate(); const day = date.getDay();
+          let season = 'A'; if ([11, 12, 1, 2, 3].includes(m)) season = 'A'; else if ([4, 10].includes(m)) season = 'B'; else season = 'C';
+          let isWeekend = (day === 5 || day === 6 || isHoliday2026(m, d) || isFirework2026(m, d, day));
+          return { priceKey: season === 'A' ? season : `${season}_${isWeekend ? 'H' : 'W'}`, label: `彩虹 / ${isWeekend ? '假日' : '平日'}` };
         }
       },
       yentai: {
@@ -456,7 +538,7 @@
                 <div className="bg-indigo-600 p-2.5 rounded-xl shadow-sm"><Calculator className="text-white w-6 h-6" /></div>
                 <div>
                   <h1 className="text-xl font-bold text-slate-800">澎湖一站式報價系統</h1>
-                  <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">v2026 ERP (穩定 HTML/VSCode 專用版)</span>
+                  <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">v2026 ERP (包含八大飯店 - HTML/VSCode 穩定版)</span>
                 </div>
               </div>
             </div>
@@ -481,7 +563,7 @@
 
                 {/* 2. 住宿選擇 */}
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                  <h2 className="flex items-center gap-2 font-bold mb-4 text-slate-700 text-sm"><Building className="w-4 h-4 text-indigo-500" /> 2. 住宿選擇 (含日立雙軌報價)</h2>
+                  <h2 className="flex items-center gap-2 font-bold mb-4 text-slate-700 text-sm"><Building className="w-4 h-4 text-indigo-500" /> 2. 住宿選擇區</h2>
                   <div className="grid grid-cols-2 gap-4 mb-3">
                     <select value={hotelId} onChange={(e) => handleHotelChange(e.target.value)} className="p-2.5 bg-slate-50 border rounded-lg font-bold text-sm outline-none">{Object.values(hotelsData).map(h => <option key={h.id} value={h.id}>{h.name}</option>)}</select>
                     <select value={roomId} onChange={(e) => setRoomId(e.target.value)} className="p-2.5 bg-slate-50 border rounded-lg font-bold text-sm outline-none">{hotelsData[hotelId].rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
