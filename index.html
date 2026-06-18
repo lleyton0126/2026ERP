@@ -12,8 +12,8 @@
   <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   
-  <!-- 載入 Babel 以便在瀏覽器中編譯 JSX -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- 載入 Babel 以便在瀏覽器中編譯 JSX (更新至穩定版) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
   
   <!-- 載入 Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -29,13 +29,13 @@
   <!-- React 應用的掛載點 -->
   <div id="root"></div>
 
-  <!-- 注意這裡：不再使用 import，而是直接從全域 React 物件中取用 Hooks -->
-  <script type="text/babel">
-    const { useState, useMemo, useEffect } = React;
+  <!-- 注意這裡：不再使用 import，加上 data-type="module" 防止瀏覽器模組錯誤 -->
+  <script type="text/babel" data-type="module">
+    const { useState, useMemo, useEffect, useRef } = React;
 
     // --- Lucide React Icons 的替代方案 (優化 DOM 渲染) ---
     const Icon = ({ name, className }) => {
-      const svgRef = React.useRef(null);
+      const svgRef = useRef(null);
       useEffect(() => {
         if (svgRef.current && window.lucide) {
           svgRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
